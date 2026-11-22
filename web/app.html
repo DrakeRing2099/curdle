@@ -1,0 +1,640 @@
+<title>Dairy Twin Control Room</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a dispatch-room console. Status strip on top, the live city map as the main
+   instrument with shocks and the shop inspector beside it, live traces below, then the
+   Monte Carlo evidence from the Python twin. */
+:root {
+  --bg: #eef2f4; --panel: #ffffff; --panel-2: #f6f8f9; --ink: #12202a; --ink-2: #4b5c67; --muted: #7a8993;
+  --rule: #d8e0e5; --rule-2: #e7ecef; --accent: #1f6fd1; --accent-ink: #ffffff;
+  --heat: #e8692f; --heat-tint: rgba(232,105,47,.10); --cut: #c98a00; --cut-tint: rgba(237,161,0,.16);
+  --bad: #cf3b3b; --good: #158a60;
+  --s1: #2a78d6; --s2: #1baf7a; --s3: #6250d6; --s-muted: #9aa6ae;
+  --seq-0: #e3eef9; --seq-1: #b7d3f6; --seq-2: #6da7ec; --seq-3: #2a78d6; --seq-4: #184f95;
+  --f-display: "Barlow Condensed", "Arial Narrow", "Roboto Condensed", sans-serif;
+  --f-body: "Barlow", "Segoe UI", system-ui, sans-serif;
+  --f-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --r: 6px;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0d151b; --panel: #141f27; --panel-2: #1a2730; --ink: #e2e9ee; --ink-2: #a7b6c0; --muted: #7d8d98;
+  --rule: #263540; --rule-2: #1e2c35; --accent: #4a92e8; --accent-ink: #08121a;
+  --heat: #f07b45; --heat-tint: rgba(240,123,69,.13); --cut: #e0a21a; --cut-tint: rgba(224,162,26,.18);
+  --bad: #ef6464; --good: #2fb383;
+  --s1: #3987e5; --s2: #199e70; --s3: #9085e9; --s-muted: #6c7c87;
+  --seq-0: #1b2c3a; --seq-1: #184f95; --seq-2: #2a78d6; --seq-3: #5598e7; --seq-4: #9ec5f4;
+  color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --bg: #0d151b; --panel: #141f27; --panel-2: #1a2730; --ink: #e2e9ee; --ink-2: #a7b6c0; --muted: #7d8d98;
+  --rule: #263540; --rule-2: #1e2c35; --accent: #4a92e8; --accent-ink: #08121a;
+  --heat: #f07b45; --heat-tint: rgba(240,123,69,.13); --cut: #e0a21a; --cut-tint: rgba(224,162,26,.18);
+  --bad: #ef6464; --good: #2fb383;
+  --s1: #3987e5; --s2: #199e70; --s3: #9085e9; --s-muted: #6c7c87;
+  --seq-0: #1b2c3a; --seq-1: #184f95; --seq-2: #2a78d6; --seq-3: #5598e7; --seq-4: #9ec5f4;
+  color-scheme: dark; }
+
+* { box-sizing: border-box; }
+html, body { background: var(--bg); color: var(--ink); }
+body { font-family: var(--f-body); font-size: 14px; line-height: 1.45; }
+.wrap { max-width: 1360px; margin: 0 auto; padding-block: 18px 48px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: flex; flex-direction: column; gap: 14px; }
+h1, h2, h3 { font-family: var(--f-display); font-weight: 600; letter-spacing: .01em; margin: 0; text-wrap: balance; }
+h1 { font-size: 30px; line-height: 1.05; }
+h2 { font-size: 21px; }
+h3 { font-size: 15px; text-transform: uppercase; letter-spacing: .07em; color: var(--ink-2); font-weight: 600; }
+.mono, .num { font-family: var(--f-mono); font-variant-numeric: tabular-nums; }
+.muted { color: var(--muted); }
+.panel { background: var(--panel); border: 1px solid var(--rule); border-radius: var(--r); padding: 14px; min-width: 0; }
+
+/* header */
+.head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 10px 24px; }
+.head p { margin: 4px 0 0; color: var(--ink-2); max-width: 68ch; }
+.clock { font-family: var(--f-display); font-size: 15px; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-2); text-align: right; }
+.clock b { display: block; font-size: 30px; color: var(--ink); letter-spacing: .02em; font-weight: 600; }
+
+/* status strip */
+.strip { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 0; padding: 0; overflow: hidden; }
+.cell { padding: 10px 14px; border-right: 1px solid var(--rule-2); min-width: 0; }
+.cell:last-child { border-right: 0; }
+.cell .lab { font-family: var(--f-display); font-size: 12.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.cell .val { font-family: var(--f-mono); font-size: 19px; font-variant-numeric: tabular-nums; margin-top: 2px; white-space: nowrap; }
+.cell .sub { font-size: 12px; color: var(--ink-2); }
+.chip { display: inline-flex; align-items: center; gap: 6px; font-family: var(--f-display); font-size: 15px; font-weight: 600;
+  letter-spacing: .04em; text-transform: uppercase; padding: 2px 8px; border-radius: 4px; border: 1px solid var(--rule); }
+.chip::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+.chip.heat { border-color: var(--heat); color: var(--heat); background: var(--heat-tint); }
+.chip.heat::before { background: var(--heat); }
+.chip.warn { border-color: var(--cut); color: var(--cut); background: var(--cut-tint); }
+.chip.warn::before { background: var(--cut); }
+.chip.ok::before { background: var(--good); }
+
+/* controls */
+.controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; }
+.btn { font-family: var(--f-display); font-size: 15px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase;
+  padding: 7px 14px; border-radius: 5px; border: 1px solid var(--rule); background: var(--panel-2); color: var(--ink); cursor: pointer; }
+.btn:hover { border-color: var(--ink-2); }
+.btn:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.btn.heat { border-color: var(--heat); color: var(--heat); background: var(--heat-tint); }
+.btn.cut { border-color: var(--cut); color: var(--cut); background: var(--cut-tint); }
+.btn[aria-pressed="true"] { box-shadow: inset 0 0 0 2px currentColor; }
+.ctl { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--ink-2); }
+select, input[type=number] { font: 500 13px var(--f-body); color: var(--ink); background: var(--panel-2); border: 1px solid var(--rule); border-radius: 5px; padding: 5px 8px; }
+input[type=range] { accent-color: var(--accent); width: 120px; }
+.sep { width: 1px; align-self: stretch; background: var(--rule); }
+
+/* main grid */
+.main { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(300px, 1fr); gap: 14px; }
+@media (max-width: 960px) { .main { grid-template-columns: 1fr; } }
+.side { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.maphead { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 6px 14px; margin-bottom: 8px; }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12.5px; color: var(--ink-2); }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 5px; vertical-align: -1px; }
+.legend i.sq { border-radius: 1px; background: transparent; border: 1.5px solid var(--ink-2); }
+.legend i.cut { border-radius: 2px; background: var(--cut-tint); border: 1px solid var(--cut); }
+#map { width: 100%; display: block; cursor: crosshair; border-radius: 4px; }
+.hint { font-size: 12.5px; color: var(--muted); margin-top: 6px; }
+
+/* inspector */
+.kv { display: grid; grid-template-columns: auto 1fr; gap: 3px 14px; font-size: 13px; }
+.kv dt { color: var(--muted); }
+.kv dd { margin: 0; font-family: var(--f-mono); font-variant-numeric: tabular-nums; }
+.ages { display: grid; grid-template-columns: 74px 1fr; gap: 4px 8px; align-items: center; font-size: 12px; margin-top: 10px; }
+.agebar { display: flex; gap: 2px; min-width: 0; }
+.agebar span { flex: 1; height: 16px; border-radius: 2px; background: var(--rule-2); position: relative; }
+.agebar span em { position: absolute; inset: 0; font-style: normal; font-family: var(--f-mono); font-size: 10px; display: grid; place-items: center; color: var(--ink); }
+.rules { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-direction: column; gap: 3px; font-size: 12.5px; }
+.rules li { font-family: var(--f-mono); font-size: 11.5px; padding: 3px 6px; background: var(--panel-2); border-radius: 3px; overflow-wrap: anywhere; }
+.rules li b { color: var(--accent); font-weight: 500; }
+.feed { list-style: none; margin: 8px 0 0; padding: 0; max-height: 168px; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
+.feed li { display: grid; grid-template-columns: 52px 1fr; gap: 8px; }
+.feed li span:first-child { font-family: var(--f-mono); font-size: 11.5px; color: var(--muted); padding-top: 1px; }
+.feed li.heat span:last-child { color: var(--heat); }
+.feed li.cut span:last-child { color: var(--cut); }
+.feed li.bad span:last-child { color: var(--bad); }
+
+/* charts */
+.charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; }
+.chart h3 { margin-bottom: 2px; }
+.chart .cap { font-size: 12.5px; color: var(--muted); margin-bottom: 6px; }
+.chart canvas { width: 100%; height: 170px; display: block; }
+.tip { position: fixed; pointer-events: none; z-index: 10; background: var(--panel); border: 1px solid var(--rule); border-radius: 5px;
+  padding: 6px 9px; font-size: 12px; box-shadow: 0 4px 14px rgba(0,0,0,.12); min-width: 120px; }
+.tip .t { font-family: var(--f-display); font-size: 13px; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); margin-bottom: 3px; }
+.tip .r { display: flex; justify-content: space-between; gap: 12px; font-family: var(--f-mono); font-variant-numeric: tabular-nums; }
+.tip .r i { display: inline-block; width: 8px; height: 2px; vertical-align: 3px; margin-right: 5px; }
+
+/* monte carlo */
+.mc-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px 20px; align-items: baseline; }
+.mc-head p { margin: 4px 0 0; color: var(--ink-2); max-width: 78ch; }
+.tablewrap { overflow-x: auto; margin-top: 10px; }
+table { border-collapse: collapse; width: 100%; font-size: 13px; }
+th { font-family: var(--f-display); font-weight: 600; font-size: 13px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); text-align: right; padding: 6px 10px; border-bottom: 1px solid var(--rule); white-space: nowrap; }
+th:first-child, td:first-child { text-align: left; }
+td { padding: 6px 10px; border-bottom: 1px solid var(--rule-2); text-align: right; font-family: var(--f-mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+td:first-child { font-family: var(--f-body); white-space: normal; min-width: 210px; }
+td small { color: var(--muted); font-size: 11px; display: block; }
+.effects { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 10px; margin-top: 10px; }
+.effect { border: 1px solid var(--rule); border-radius: var(--r); padding: 10px 12px; background: var(--panel-2); min-width: 0; }
+.effect .n { font-family: var(--f-display); font-size: 15px; font-weight: 600; }
+.effect .big { font-family: var(--f-mono); font-size: 20px; margin-top: 4px; font-variant-numeric: tabular-nums; }
+.effect .big.good { color: var(--good); } .effect .big.bad { color: var(--bad); }
+.effect .d { font-size: 12.5px; color: var(--ink-2); margin-top: 2px; }
+.mccharts { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 14px; margin-top: 12px; }
+.mccharts canvas { width: 100%; height: 210px; display: block; }
+.foot { font-size: 12.5px; color: var(--muted); max-width: 90ch; }
+@media (max-width: 600px) { .clock { text-align: left; } }
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+</style>
+
+<div class="wrap">
+  <header class="head">
+    <div>
+      <h1>Dairy Twin Control Room</h1>
+      <p>A stochastic digital twin of one dairy brand's city network: one plant, 240 kiranas run as actors, 4 supermarkets behind a brand warehouse, and 6 quick-commerce dark stores filled straight from the plant. Every day is a fresh random draw. Pick a weekly policy, including one the twin learned by itself, then trigger a heat wave or a power cut and watch it spread.</p>
+    </div>
+    <div class="clock"><span id="clockSub">Week 1 · Thursday</span><b id="clockMain">1 Jan</b></div>
+  </header>
+
+  <section class="panel strip" aria-label="Today's state">
+    <div class="cell"><div class="lab">Weather</div><div class="val"><span id="chipWeather" class="chip ok">Normal</span></div><div class="sub" id="weatherSub">&nbsp;</div></div>
+    <div class="cell"><div class="lab">Milk at plant</div><div class="val" id="milkVal">0</div><div class="sub" id="milkSub">litres today</div></div>
+    <div class="cell"><div class="lab">Fill rate, 7 days</div><div class="val" id="fillVal">–</div><div class="sub" id="fillSub">sales ÷ demand</div></div>
+    <div class="cell"><div class="lab">Wasted, 7 days</div><div class="val" id="wasteVal">–</div><div class="sub">units expired or spoiled</div></div>
+    <div class="cell"><div class="lab">Moved to apps</div><div class="val" id="migVal">0</div><div class="sub">kirana households, net</div></div>
+    <div class="cell"><div class="lab">Profit so far</div><div class="val" id="cashVal">₹0</div><div class="sub">crore, this year</div></div>
+  </section>
+
+  <section class="panel controls" aria-label="Simulation controls">
+    <button class="btn primary" id="play" type="button">Run</button>
+    <button class="btn" id="stepBtn" type="button">Step one day</button>
+    <label class="ctl" for="speed">Speed <input id="speed" type="range" min="1" max="40" value="8"><span class="mono" id="speedLab">8 days/s</span></label>
+    <span class="sep" aria-hidden="true"></span>
+    <label class="ctl" for="policy">Weekly policy
+      <select id="policy"><option value="Habit">Habit: last week's orders + 5%</option><option value="Heat-aware">Heat-aware: reads the weather</option><option value="Learned">Learned: Q-learning, trained on the twin</option></select></label>
+    <span class="ctl" id="decisionText"></span>
+    <label class="ctl" for="seed">Year <input id="seed" type="number" min="0" max="9999" value="7" style="width:76px"></label>
+    <button class="btn" id="reset" type="button">New year</button>
+  </section>
+
+  <div class="main">
+    <section class="panel" aria-label="City map">
+      <div class="maphead">
+        <h2>City at the end of <span id="mapDay">day 1</span></h2>
+        <div class="legend">
+          <span><i style="background:var(--s1)"></i>In stock</span>
+          <span><i style="background:var(--bad)"></i>Turned away 5%+ of customers</span>
+          <span><i style="background:var(--cut)"></i>Stock spoiled in a power cut</span>
+          <span><i class="sq"></i>Battery fridge</span>
+          <span><i style="border-radius:1px;background:var(--ink)"></i>Dark store</span>
+          <span><i class="cut"></i>Power cut today</span>
+        </div>
+      </div>
+      <canvas id="map" height="520" aria-label="Map of 12 sectors with 240 kirana shops"></canvas>
+      <div class="hint" id="mapHint">Click a shop to inspect it. Use “Cut power” then click a sector to black it out tomorrow.</div>
+    </section>
+
+    <div class="side">
+      <section class="panel" aria-label="Shocks and strategic knobs">
+        <h3>Shocks</h3>
+        <div class="controls" style="margin-top:8px">
+          <button class="btn heat" id="heatBtn" type="button">Start a 3-week heat wave</button>
+          <button class="btn cut" id="cutBtn" type="button" aria-pressed="false">Cut power…</button>
+        </div>
+        <h3 style="margin-top:14px">Strategic knobs</h3>
+        <div style="display:flex;flex-direction:column;gap:9px;margin-top:8px">
+          <label class="ctl" for="batt">Battery brand fridges <input id="batt" type="range" min="0" max="60" step="10" value="0"><span class="mono" id="battLab">0%</span></label>
+          <label class="ctl" for="twice">Kirana deliveries
+            <select id="twice"><option value="auto">As the policy decides</option><option value="2">Twice a day, always</option><option value="1">Once a day, always</option></select></label>
+          <label class="ctl" for="returns"><input id="returns" type="checkbox"> Take back unsold kirana stock</label>
+        </div>
+      </section>
+
+      <section class="panel" aria-label="Shop inspector" id="inspector">
+        <h3 id="inspTitle">Shop inspector</h3>
+        <div id="inspBody" class="muted" style="margin-top:6px">Click any shop on the map.</div>
+      </section>
+
+      <section class="panel" aria-label="Event feed">
+        <h3>What happened</h3>
+        <ul class="feed" id="feed"></ul>
+      </section>
+    </div>
+  </div>
+
+  <section class="charts" aria-label="Live traces">
+    <div class="panel chart"><h3>Milk: supply vs need</h3><div class="cap">Litres per day reaching the plant, and litres consumer demand would use</div><canvas id="cMilk"></canvas></div>
+    <div class="panel chart"><h3>Fill rate by channel</h3><div class="cap">Sales ÷ demand, 7-day rolling. Orange band: heat wave</div><canvas id="cFill"></canvas></div>
+    <div class="panel chart"><h3>Waste</h3><div class="cap">Units per day: at kiranas (mostly spoiled in power cuts) and brand-side</div><canvas id="cWaste"></canvas></div>
+    <div class="panel chart"><h3>Bullwhip at the kiranas</h3><div class="cap">Pouch milk per day: what shops ordered vs what customers asked for (illustrative; the browser engine overstates bullwhip by about 20%)</div><canvas id="cBull"></canvas></div>
+  </section>
+
+  <section class="panel" aria-label="Monte Carlo results">
+    <div class="mc-head">
+      <div>
+        <h2>What <span id="mcN">100</span> simulated years say</h2>
+        <p>The browser runs one year at a time. The verdicts below come from the Python twin, which ran every experiment over the same <span id="mcN2">100</span> random years (common random numbers), so each difference is paired year by year and comes from the decision, not from luck.</p>
+      </div>
+    </div>
+    <div class="effects" id="effects"></div>
+    <div class="mccharts">
+      <div><h3>Weekly fill rate across 100 years</h3><div class="cap muted">Median and 5th–95th percentile band</div><canvas id="mcFill"></canvas></div>
+      <div><h3>Weekly waste: with and without power cuts</h3><div class="cap muted">Units per week, median and 5th–95th percentile band</div><canvas id="mcWaste"></canvas></div>
+    </div>
+    <div class="tablewrap">
+      <table id="mcTable"><thead><tr>
+        <th>Experiment</th><th>Fill</th><th>Fill in heat waves</th><th>Worst week</th><th>Waste</th><th>Lost sales</th><th>Households lost</th><th>Reward</th><th>Goal met</th><th>Pattern goals</th>
+      </tr></thead><tbody></tbody></table>
+    </div>
+    <p class="foot">Median over simulated years, with the 5th–95th percentile range underneath. Reward = annual profit − ₹10 × lost units, in lakh, the score the learned policy was trained on. Goal met = share of weeks the goal predicate holds: rolling 4-week fill at or above 92% (kirana), 95% (modern trade), 92% (quick-commerce) for every product, waste under its cap, and cash above zero. Pattern goals = share of years in which all three behaviour goals hold: back to the kirana target within 2 weeks of every heat wave, no channel below 85% for more than 2 weeks running, and no sector carrying more than 20% of kirana waste. All data is synthetic.</p>
+    <div id="policySection"></div>
+  </section>
+</div>
+<div class="tip" id="tip" hidden></div>
+
+<script>/*ENGINE*/</script>
+<script>
+const CFG = /*CONFIG*/;
+const MC = /*SUMMARY*/;
+</script>
+<script>
+"use strict";
+const { Twin } = DairyEngine;
+const $ = id => document.getElementById(id);
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const PRODUCTS = ["Pouch milk", "Curd", "Paneer", "Butter"];
+const CHANNELS = ["Kirana", "Modern trade", "Quick-commerce"];
+const DAYS = ["Thursday", "Friday", "Saturday", "Sunday", "Monday", "Tuesday", "Wednesday"]; // 1 Jan 2026 is a Thursday
+const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const fmt = (x, d = 0) => x.toLocaleString("en-IN", { maximumFractionDigits: d, minimumFractionDigits: d });
+const dateOf = d => { const dt = new Date(Date.UTC(2026, 0, 1 + d)); return `${dt.getUTCDate()} ${MONTHS[dt.getUTCMonth()]}`; };
+
+let twin, running = false, acc = 0, last = 0, selected = -1, cutMode = false, feed = [];
+const scenario = () => ({
+  battery_fridge_share: +$("batt").value / 100, kirana_returns: $("returns").checked,
+  force_twice_daily: $("twice").value === "auto" ? null : $("twice").value === "2",
+  forced_weather: {}, forced_outages: {},
+});
+
+function reset() {
+  twin = new Twin(CFG, scenario(), $("policy").value, +$("seed").value || 0);
+  twin.watch = selected;
+  feed = []; pushFeed(0, `Year ${$("seed").value} begins under the ${$("policy").value.toLowerCase()} policy`, "");
+  draw();
+}
+function pushFeed(day, text, cls) { feed.unshift({ day, text, cls }); if (feed.length > 60) feed.pop(); }
+
+// ------------------------------------------------------------------ stepping
+function stepDay() {
+  if (twin.day >= CFG.days) { running = false; $("play").textContent = "Run"; return; }
+  const prev = { ...twin.regime };
+  twin.watch = selected;
+  twin.step();
+  const r = twin.log[twin.log.length - 1];
+  if (r.weather && !prev.weather) pushFeed(r.day, "Heat wave begins: milk yield drops, curd demand jumps", "heat");
+  if (!r.weather && prev.weather) pushFeed(r.day, "Heat wave ends", "");
+  if (r.festival && !prev.festival) pushFeed(r.day, "Festival week: paneer and butter demand up", "");
+  if (r.supply && !prev.supply) pushFeed(r.day, "Supply stressed: fewer litres from villages", "bad");
+  const cuts = []; for (let l = 0; l < twin.nLoc; l++) if (twin.outHours[l] >= 2) cuts.push(`Sector ${l + 1} (${twin.outHours[l].toFixed(1)} h)`);
+  if (cuts.length) pushFeed(r.day, `Power cut: ${cuts.slice(0, 4).join(", ")}${cuts.length > 4 ? ` and ${cuts.length - 4} more` : ""}`, "cut");
+  if (r.late) pushFeed(r.day, `Van after 6 am on ${r.late} shops' route`, "");
+  if (r.milk < r.milkNeed * 0.92) pushFeed(r.day, `Milk short: ${fmt(r.milk / 1000, 1)}k litres in, ${fmt(r.milkNeed / 1000, 1)}k needed`, "bad");
+  if (twin.day === CFG.days) pushFeed(r.day, "Year complete", "");
+}
+function loop(ts) {
+  if (running) {
+    const dt = Math.min(0.25, (ts - last) / 1000 || 0); acc += dt * +$("speed").value;
+    let n = 0; while (acc >= 1 && n < 10) { stepDay(); acc -= 1; n++; }
+    if (n) draw();
+  }
+  last = ts; requestAnimationFrame(loop);
+}
+
+// ------------------------------------------------------------------ status
+function sumWin(key, days, fn) { const L = twin.log.slice(-days); return L.reduce((a, r) => a + fn(r), 0); }
+function decisionLabel(d) {
+  if (d.action) return d.action.label;
+  const p = twin.policyName;
+  return `${p === "Habit" ? "habit" : "weather"} forecast +${p === "Habit" ? 5 : 8}%, ${d.priority ? "kiranas & staples first" : (d.milkPriority ? "pro-rata, staples first" : "pro-rata")}, ${d.twice ? "2 drops" : "1 drop"}/day`;
+}
+function drawStatus() {
+  const d = Math.max(0, twin.day - 1), r = twin.log[twin.log.length - 1];
+  $("clockMain").textContent = dateOf(d);
+  $("clockSub").textContent = `Week ${Math.floor(d / 7) + 1} · ${DAYS[d % 7]} · day ${d + 1} of ${CFG.days}`;
+  $("mapDay").textContent = `${DAYS[d % 7]}, ${dateOf(d)}`;
+  const heat = twin.regime.weather === 1;
+  const cw = $("chipWeather"); cw.className = "chip " + (heat ? "heat" : "ok"); cw.textContent = heat ? "Heat wave" : "Normal";
+  const bits = []; if (twin.regime.festival) bits.push("festival week"); if (twin.regime.supply) bits.push("supply stressed");
+  $("weatherSub").textContent = bits.length ? bits.join(" · ") : " ";
+  $("decisionText").textContent = twin.decision ? "This week: " + decisionLabel(twin.decision) : "";
+  if (!r) return;
+  $("milkVal").textContent = fmt(r.milk);
+  $("milkSub").textContent = `${r.milk >= r.milkNeed ? "covers" : "short of"} ${fmt(r.milkNeed)} needed`;
+  const D = sumWin("d", 7, x => x.demand.flat().reduce((a, b) => a + b, 0)), S = sumWin("s", 7, x => x.sales.flat().reduce((a, b) => a + b, 0));
+  $("fillVal").textContent = (100 * S / Math.max(D, 1)).toFixed(1) + "%";
+  $("fillSub").textContent = `${fmt(D - S)} sales lost`;
+  const W = sumWin("w", 7, x => [x.wasteK, x.wasteP, x.wasteM, x.wasteQ].flat().reduce((a, b) => a + b, 0));
+  $("wasteVal").textContent = fmt(W);
+  $("migVal").textContent = fmt(CFG.city.households[0] - r.customers[0]);
+  $("cashVal").textContent = "₹" + ((r.cash - CFG.money.opening_cash) / 1e7).toFixed(2);
+  $("feed").innerHTML = feed.slice(0, 40).map(f => `<li class="${f.cls}"><span>${dateOf(f.day)}</span><span>${f.text}</span></li>`).join("");
+}
+
+// ------------------------------------------------------------------ map
+const map = $("map"); let mapGeom = null;
+function sizeCanvas(c, h) {
+  const dpr = window.devicePixelRatio || 1, w = c.clientWidth;
+  if (h) c.style.height = h + "px";
+  const hh = c.clientHeight;
+  if (c.width !== Math.round(w * dpr) || c.height !== Math.round(hh * dpr)) { c.width = Math.round(w * dpr); c.height = Math.round(hh * dpr); }
+  const ctx = c.getContext("2d"); ctx.setTransform(dpr, 0, 0, dpr, 0, 0); return { ctx, w, h: hh };
+}
+function shopState(i) {
+  const P = 4; let lost = 0, spoiled = 0;
+  for (let p = 0; p < P; p++) { lost += twin.todayL[i * P + p]; spoiled += twin.todaySpoiled[i * P + p]; }
+  let dem = 0; for (let p = 0; p < P; p++) dem += twin.todayD[i * P + p];
+  return { lost, spoiled, dem, short: lost >= Math.max(2, 0.05 * dem), fill: twin.shopVolume(i) / twin.cap[i] };
+}
+function drawMap() {
+  const gx = twin.gx, gy = twin.gy;
+  const w0 = map.clientWidth, h = Math.max(300, Math.min(700, w0 * gy / gx * 1.2));
+  const { ctx, w } = sizeCanvas(map, h);
+  const pad = 6, cw = (w - pad * 2) / gx, ch = (h - pad * 2) / gy;
+  mapGeom = { pad, cw, ch };
+  ctx.clearRect(0, 0, w, h);
+  const rule = css("--rule"), panel2 = css("--panel-2"), ink2 = css("--ink-2"), muted = css("--muted");
+  const late = new Set(); for (let i = 0; i < twin.n; i++) if (twin.lastLate[i]) late.add(twin.loc[i]);
+  for (let l = 0; l < twin.nLoc; l++) {
+    const x = pad + (l % gx) * cw, y = pad + Math.floor(l / gx) * ch;
+    ctx.fillStyle = twin.outHours[l] > 0 ? css("--cut-tint") : panel2;
+    ctx.fillRect(x + 2, y + 2, cw - 4, ch - 4);
+    ctx.strokeStyle = twin.outHours[l] > 0 ? css("--cut") : rule; ctx.lineWidth = 1;
+    ctx.strokeRect(x + 2.5, y + 2.5, cw - 5, ch - 5);
+    const small = cw < 150;
+    ctx.fillStyle = ink2; ctx.font = `600 ${small ? 11 : 13}px ${css("--f-display")}`; ctx.textBaseline = "top";
+    ctx.fillText(small ? `S${l + 1}` : `SECTOR ${l + 1}`, x + 7, y + 7);
+    ctx.font = `11px ${css("--f-mono")}`; ctx.fillStyle = muted;
+    const tags = [];
+    if (twin.outHours[l] > 0) tags.push(`power cut ${twin.outHours[l].toFixed(1)} h`);
+    if (late.has(l)) tags.push("van late");
+    if (cw >= 150) ctx.fillText(tags.join(" · "), x + 9, y + 24);
+    else if (twin.outHours[l] > 0) ctx.fillText(`${twin.outHours[l].toFixed(1)}h`, x + 7, y + 21);
+  }
+  // dark stores
+  for (let s = 0; s < twin.S; s++) {
+    const [qx, qy] = twin.qcPos[s], X = pad + qx * cw, Y = pad + qy * ch;
+    ctx.fillStyle = css("--ink"); ctx.fillRect(X - 5, Y - 5, 10, 10);
+    if (cw >= 150) { ctx.font = `10px ${css("--f-mono")}`; ctx.textAlign = "right"; ctx.textBaseline = "middle"; ctx.fillStyle = css("--muted"); ctx.fillText("dark store", X - 9, Y); ctx.textAlign = "left"; }
+  }
+  // shops
+  const s1 = css("--s1"), bad = css("--bad"), cut = css("--cut"), surf = css("--panel"), ink = css("--ink");
+  for (let i = 0; i < twin.n; i++) {
+    const [px, py] = twin.pos[i], X = pad + px * cw, Y = pad + py * ch;
+    const st = shopState(i), r = 2.6 + 9 * Math.sqrt(twin.share[i]);
+    ctx.beginPath(); ctx.arc(X, Y, r + 1.5, 0, Math.PI * 2); ctx.fillStyle = surf; ctx.fill();
+    ctx.beginPath(); ctx.arc(X, Y, r, 0, Math.PI * 2);
+    ctx.fillStyle = st.spoiled > 0 ? cut : st.short ? bad : s1;
+    ctx.globalAlpha = st.spoiled > 0 || st.short ? 1 : 0.4 + 0.6 * Math.min(1, st.fill * 1.6);
+    ctx.fill(); ctx.globalAlpha = 1;
+    if (twin.battery[i]) { ctx.strokeStyle = ink; ctx.lineWidth = 1.2; ctx.strokeRect(X - r - 3, Y - r - 3, 2 * r + 6, 2 * r + 6); }
+    if (i === selected) { ctx.beginPath(); ctx.arc(X, Y, r + 5, 0, Math.PI * 2); ctx.strokeStyle = ink; ctx.lineWidth = 2; ctx.stroke(); }
+  }
+  ctx.fillStyle = muted; ctx.font = `10.5px ${css("--f-body")}`; ctx.textBaseline = "alphabetic";
+}
+function mapHit(ev) {
+  const rect = map.getBoundingClientRect(), x = ev.clientX - rect.left, y = ev.clientY - rect.top, g = mapGeom;
+  if (!g) return null;
+  let best = -1, bd = 1e9;
+  for (let i = 0; i < twin.n; i++) {
+    const X = g.pad + twin.pos[i][0] * g.cw, Y = g.pad + twin.pos[i][1] * g.ch, d = (X - x) ** 2 + (Y - y) ** 2;
+    if (d < bd) { bd = d; best = i; }
+  }
+  const sector = Math.floor((y - g.pad) / g.ch) * twin.gx + Math.floor((x - g.pad) / g.cw);
+  return { shop: bd < 14 * 14 ? best : -1, sector: Math.max(0, Math.min(twin.nLoc - 1, sector)) };
+}
+map.addEventListener("click", ev => {
+  const h = mapHit(ev); if (!h) return;
+  if (cutMode) {
+    const d = twin.day; twin.scen.forced_outages[d] = twin.scen.forced_outages[d] || {}; twin.scen.forced_outages[d][h.sector] = 7;
+    pushFeed(d, `You cut power to Sector ${h.sector + 1} for 7 hours tomorrow afternoon`, "cut");
+    cutMode = false; $("cutBtn").setAttribute("aria-pressed", "false"); $("mapHint").textContent = "Click a shop to inspect it. Use “Cut power” then click a sector to black it out tomorrow.";
+  } else if (h.shop >= 0) { selected = h.shop; twin.watch = selected; }
+  draw();
+});
+map.addEventListener("mousemove", ev => {
+  const h = mapHit(ev), tip = $("tip");
+  if (!h || h.shop < 0 || cutMode) { tip.hidden = true; return; }
+  const i = h.shop, st = shopState(i);
+  tip.innerHTML = `<div class="t">Shop ${i + 1} · Sector ${twin.loc[i] + 1}</div>
+    <div class="r"><span>Fridge</span><span>${Math.round(100 * st.fill)}% full</span></div>
+    <div class="r"><span>Turned away today</span><span>${st.lost}</span></div>
+    <div class="r"><span>Spoiled today</span><span>${st.spoiled}</span></div>`;
+  showTip(ev);
+});
+map.addEventListener("mouseleave", () => { $("tip").hidden = true; });
+function showTip(ev) {
+  const tip = $("tip"); tip.hidden = false;
+  const x = Math.min(window.innerWidth - tip.offsetWidth - 8, ev.clientX + 14), y = Math.min(window.innerHeight - tip.offsetHeight - 8, ev.clientY + 14);
+  tip.style.left = x + "px"; tip.style.top = y + "px";
+}
+
+// ------------------------------------------------------------------ inspector
+function drawInspector() {
+  if (selected < 0) return;
+  const i = selected, P = 4, st = shopState(i);
+  $("inspTitle").textContent = `Shop ${i + 1} · Sector ${twin.loc[i] + 1}`;
+  let ages = "";
+  const by = twin.shopStockByAge(i);
+  for (let p = 0; p < P; p++) {
+    let row = by[p];
+    if (row.length > 8) row = row.slice(0, 7).concat([row.slice(7).reduce((a, b) => a + b, 0)]);
+    const mx = Math.max(1, ...row);
+    const cells = row.map((v, a) => `<span title="age ${a}${a === 7 && by[p].length > 8 ? "+" : ""} days: ${v} units" style="background:${v ? `color-mix(in srgb, var(--s1) ${Math.round(20 + 70 * v / mx)}%, var(--panel))` : ""}"><em>${v || ""}</em></span>`).join("");
+    ages += `<div>${PRODUCTS[p]}</div><div class="agebar">${cells}</div>`;
+  }
+  const kb = twin.kBase[i], k = twin.k[i];
+  $("inspBody").className = "";
+  $("inspBody").innerHTML = `
+    <dl class="kv">
+      <dt>Fridge</dt><dd>${Math.round(twin.cap[i])} pouch-slots · ${Math.round(100 * st.fill)}% full${twin.battery[i] ? " · battery" : ""}</dd>
+      <dt>Caution k</dt><dd>${k.toFixed(2)} <span class="muted">(normal ${kb.toFixed(2)})</span></dd>
+      <dt>Share of city</dt><dd>${(100 * twin.share[i]).toFixed(2)}% of kirana demand</dd>
+    </dl>
+    <div class="ages"><div class="muted">Stock by age</div><div class="muted" style="display:flex;justify-content:space-between"><span>fresh</span><span>expires →</span></div>${ages}</div>
+    <h3 style="margin-top:12px">Rules that fired today</h3>
+    <ul class="rules">${(twin.watchLog.length ? twin.watchLog : ["Step a day to see this shop's rules fire"]).map(s => `<li>${s.replace(/^(R\d+)/, "<b>$1</b>")}</li>`).join("")}</ul>`;
+}
+
+// ------------------------------------------------------------------ charts
+function lineChart(canvas, opt) {
+  const { ctx, w, h } = sizeCanvas(canvas);
+  const m = { l: 46, r: opt.labelRoom ?? 92, t: 8, b: 22 }, iw = w - m.l - m.r, ih = h - m.t - m.b;
+  ctx.clearRect(0, 0, w, h);
+  const n = opt.n, xs = i => m.l + (n <= 1 ? 0 : i / (n - 1)) * iw;
+  let lo = opt.min ?? Infinity, hi = opt.max ?? -Infinity;
+  if (opt.min === undefined || opt.max === undefined) for (const s of opt.series) for (const v of (s.band ? s.band.flat() : s.data)) if (Number.isFinite(v)) { if (opt.min === undefined) lo = Math.min(lo, v); if (opt.max === undefined) hi = Math.max(hi, v); }
+  if (!Number.isFinite(lo)) { lo = 0; hi = 1; } if (hi === lo) hi = lo + 1;
+  const ys = v => m.t + ih - (v - lo) / (hi - lo) * ih;
+  // shading
+  if (opt.shade) { ctx.fillStyle = css("--heat-tint"); for (let i = 0; i < n; i++) if (opt.shade[i] > 0) { ctx.globalAlpha = Math.min(1, opt.shade[i] * (opt.shadeScale || 1)); ctx.fillRect(xs(i) - iw / Math.max(1, n - 1) / 2, m.t, iw / Math.max(1, n - 1) + 0.5, ih); } ctx.globalAlpha = 1; }
+  // grid
+  ctx.strokeStyle = css("--rule-2"); ctx.lineWidth = 1; ctx.fillStyle = css("--muted"); ctx.font = `10.5px ${css("--f-mono")}`;
+  ctx.textAlign = "right"; ctx.textBaseline = "middle";
+  for (let k = 0; k <= 4; k++) { const v = lo + (hi - lo) * k / 4, y = Math.round(ys(v)) + 0.5; ctx.beginPath(); ctx.moveTo(m.l, y); ctx.lineTo(m.l + iw, y); ctx.stroke(); ctx.fillText(opt.fmtY(v), m.l - 6, y); }
+  ctx.textAlign = "center"; ctx.textBaseline = "top";
+  for (const t of opt.xTicks || []) ctx.fillText(t.label, xs(t.i), m.t + ih + 6);
+  // bands and lines
+  for (const s of opt.series) {
+    if (s.band) { ctx.fillStyle = s.color; ctx.globalAlpha = 0.16; ctx.beginPath();
+      s.band[0].forEach((v, i) => i ? ctx.lineTo(xs(i), ys(v)) : ctx.moveTo(xs(i), ys(v)));
+      for (let i = s.band[1].length - 1; i >= 0; i--) ctx.lineTo(xs(i), ys(s.band[1][i])); ctx.closePath(); ctx.fill(); ctx.globalAlpha = 1; }
+    ctx.strokeStyle = s.color; ctx.lineWidth = s.width || 2; ctx.lineJoin = "round"; ctx.beginPath();
+    let started = false; s.data.forEach((v, i) => { if (!Number.isFinite(v)) return; const X = xs(i), Y = ys(v); started ? ctx.lineTo(X, Y) : ctx.moveTo(X, Y); started = true; }); ctx.stroke();
+  }
+  // direct labels at the end, nudged apart
+  const ends = opt.series.filter(s => s.label).map(s => { let j = s.data.length - 1; while (j > 0 && !Number.isFinite(s.data[j])) j--; return { s, y: ys(s.data[j]), x: xs(j) }; }).sort((a, b) => a.y - b.y);
+  for (let k = 1; k < ends.length; k++) if (ends[k].y - ends[k - 1].y < 13) ends[k].y = ends[k - 1].y + 13;
+  ctx.textAlign = "left"; ctx.textBaseline = "middle"; ctx.font = `500 11.5px ${css("--f-body")}`;
+  for (const e of ends) { ctx.fillStyle = e.s.color; ctx.beginPath(); ctx.arc(e.x, ys(e.s.data[e.s.data.length - 1]) || e.y, 3, 0, 7); ctx.fill(); ctx.fillStyle = css("--ink-2"); ctx.fillText(e.s.label, m.l + iw + 8, Math.min(h - 8, Math.max(8, e.y))); }
+  canvas._chart = { opt, m, iw, ih, n, xs };
+}
+function attachHover(canvas) {
+  canvas.addEventListener("mousemove", ev => {
+    const c = canvas._chart; if (!c || c.n < 1) return;
+    const rect = canvas.getBoundingClientRect(), x = ev.clientX - rect.left;
+    const i = Math.max(0, Math.min(c.n - 1, Math.round((x - c.m.l) / Math.max(1, c.iw) * (c.n - 1))));
+    const o = c.opt;
+    $("tip").innerHTML = `<div class="t">${o.xLabel(i)}</div>` + o.series.filter(s => s.tip !== false).map(s =>
+      `<div class="r"><span><i style="background:${s.color}"></i>${s.name}</span><span>${Number.isFinite(s.data[i]) ? o.fmtY(s.data[i], true) : "–"}</span></div>`).join("");
+    showTip(ev);
+  });
+  canvas.addEventListener("mouseleave", () => { $("tip").hidden = true; });
+}
+const roll = (arr, k) => arr.map((_, i) => { const a = Math.max(0, i - k + 1); let s = 0; for (let j = a; j <= i; j++) s += arr[j]; return s / (i - a + 1); });
+function monthTicks(n) { const t = []; for (let m = 0; m < 12; m++) { const d = Math.round((Date.UTC(2026, m, 1) - Date.UTC(2026, 0, 1)) / 864e5); if (d < n && m % 2 === 0) t.push({ i: d, label: MONTHS[m] }); } return t; }
+function drawCharts() {
+  const L = twin.log, n = CFG.days; if (!L.length) return;
+  const pad = a => a.concat(new Array(Math.max(0, n - a.length)).fill(NaN));
+  const shade = pad(L.map(r => r.weather));
+  const xl = i => `${dateOf(i)} · day ${i + 1}`, ticks = monthTicks(n);
+  lineChart($("cMilk"), { n, shade, xTicks: ticks, xLabel: xl, min: 0, fmtY: v => fmt(v / 1000, 0) + "k",
+    series: [{ name: "Reaching plant", label: "Supply", color: css("--s1"), data: pad(L.map(r => r.milk)) },
+             { name: "Needed", label: "Need", color: css("--s-muted"), data: pad(L.map(r => r.milkNeed)) }] });
+  const fillCh = c => { const d = L.map(r => r.demand[c].reduce((a, b) => a + b, 0)), s = L.map(r => r.sales[c].reduce((a, b) => a + b, 0)); const rd = roll(d, 7), rs = roll(s, 7); return pad(rd.map((x, i) => 100 * rs[i] / Math.max(x, 1))); };
+  lineChart($("cFill"), { n, shade, xTicks: ticks, xLabel: xl, max: 100, fmtY: (v, t) => v.toFixed(t ? 1 : 0) + "%",
+    series: [0, 1, 2].map(c => ({ name: CHANNELS[c], label: ["Kirana", "Modern tr.", "Q-comm"][c], color: css(["--s1", "--s2", "--s3"][c]), data: fillCh(c) })) });
+  lineChart($("cWaste"), { n, shade, xTicks: ticks, xLabel: xl, min: 0, fmtY: v => fmt(v),
+    series: [{ name: "At kiranas", label: "Kiranas", color: css("--s1"), data: pad(L.map(r => r.wasteK.reduce((a, b) => a + b, 0))) },
+             { name: "Brand-side", label: "Brand-side", color: css("--s3"), data: pad(L.map(r => [r.wasteP, r.wasteM, r.wasteQ].flat().reduce((a, b) => a + b, 0))) }] });
+  lineChart($("cBull"), { n, shade, xTicks: ticks, xLabel: xl, fmtY: v => fmt(v / 1000, 0) + "k",
+    series: [{ name: "Kirana orders", label: "Orders", color: css("--s1"), data: pad(L.map(r => r.kOrders[0])) },
+             { name: "Customer demand", label: "Demand", color: css("--s-muted"), data: pad(L.map(r => r.demand[0][0])) }] });
+}
+
+// ------------------------------------------------------------------ Monte Carlo section (Python results)
+function drawMC() {
+  if (!MC || !MC.experiments) return;
+  $("mcN").textContent = MC.n_years; $("mcN2").textContent = MC.n_years;
+  const E = Object.fromEntries(MC.experiments.map(e => [e.key, e]));
+  const pick = [
+    ["Heat-aware vs Habit", "Heat-aware policy, typical years", "lost"],
+    ["Learned vs Heat-aware", "Learned policy vs heat-aware: lost sales", "lost"],
+    ["Learned vs Heat-aware", "Learned policy vs heat-aware: the score it was trained on", "reward10"],
+    ["Learned vs Heat-aware", "Learned policy vs heat-aware: waste", "waste_units"],
+    ["Learned vs Heat-aware", "The catch: the learned policy meets the full goal far less often", "predicate_share",
+     "Its reward counts every lost unit the same and knows nothing of per-channel targets, so it lets supermarket butter, and milk in some weeks, sit just under target while total lost sales fall. The reward barely notices; the goal predicate does."],
+    ["Power cuts vs none (typical years)", "What power cuts cost in a typical year", "waste_units"],
+    ["Battery fridges (risk-targeted) vs none", "30% battery fridges on the riskiest feeders", "waste_units"],
+    ["Kirana returns vs none", "Taking back unsold kirana stock", "profit"],
+  ];
+  const unit = {
+    lost: [v => `${fmt(Math.abs(v) / 1000, 0)}k units`, "lost sales per year"],
+    waste_units: [v => `${fmt(Math.abs(v) / 1000, 0)}k units`, "waste per year"],
+    profit: [v => `₹${fmt(Math.abs(v) * 100, 0)} lakh`, "profit per year"],
+    reward10: [v => `₹${fmt(Math.abs(v), 0)} lakh`, "reward per year (profit − ₹10 × lost units)"],
+    predicate_share: [v => `${Math.abs(v).toFixed(1)} weeks in 100`, "weeks the goal predicate holds"],
+  };
+  const higherIsBetter = { profit: true, predicate_share: true, reward10: true };
+  $("effects").innerHTML = pick.map(([key, title, metric, note]) => {
+    const e = MC.paired_effects.find(x => x.comparison === key); if (!e) return "";
+    const v = e[metric], [f, what] = unit[metric];
+    const good = higherIsBetter[metric] ? v.mean > 0 : v.mean < 0;
+    const sign = v.mean < 0 ? "−" : "+";
+    const ci = v.ci95.map(x => (x < 0 ? "−" : "+") + f(x)).join(" to ");
+    const share = Math.round(100 * v.share_years_better);
+    const freq = good ? `Better in ${share}% of the ${MC.n_years} paired years.` : `Worse in ${100 - share}% of the ${MC.n_years} paired years.`;
+    return `<div class="effect"><div class="n">${title}</div>
+      <div class="big ${good ? "good" : "bad"}">${sign}${f(v.mean)}</div>
+      <div class="d">${what} (95% CI ${ci}). ${freq}${note ? " " + note : ""}</div></div>`;
+  }).join("");
+  const rows = MC.experiments.map(e => {
+    const c = (s, f, u = "") => `${f(s.p50)}${u}<small>${f(s.p5)}–${f(s.p95)}</small>`;
+    return `<tr><td>${e.label}</td><td>${c(e.fill_pct, x => x.toFixed(1), "%")}</td><td>${c(e.fill_heat_pct, x => x.toFixed(1), "%")}</td>
+      <td>${c(e.worst_week_fill_pct, x => x.toFixed(1), "%")}</td><td>${c(e.waste_units, x => fmt(x / 1000, 0), "k")}</td>
+      <td>${c(e.lost_units, x => (x / 1e6).toFixed(2), "M")}</td><td>${c(e.kirana_customers_lost, x => fmt(x, 0))}</td>
+      <td>${e.reward_lam10_lakh ? c(e.reward_lam10_lakh, x => fmt(x, 0)) : "–"}</td>
+      <td>${c(e.predicate_weeks_pct, x => x.toFixed(0), "%")}</td><td>${e.behaviour_pct ? Math.round(e.behaviour_pct.all) + "%" : "–"}</td></tr>`;
+  }).join("");
+  document.querySelector("#mcTable tbody").innerHTML = rows;
+  const F = MC.fans, W = F.habit.fill.p50.length, wl = i => `Week ${i + 1}`;
+  const wt = []; for (let m = 0; m < 12; m += 2) wt.push({ i: Math.round(m * 52 / 12), label: MONTHS[m] });
+  lineChart($("mcFill"), { n: W, shade: F.heat_share, shadeScale: 1.6, xTicks: wt, xLabel: wl, fmtY: (v, t) => v.toFixed(t ? 1 : 0) + "%", labelRoom: 82,
+    series: [{ name: "Habit", label: "Habit", color: css("--s1"), data: F.habit.fill.p50, band: [F.habit.fill.p5, F.habit.fill.p95] },
+             { name: "Heat-aware", label: "Heat-aware", color: css("--s3"), data: F.heat.fill.p50, band: [F.heat.fill.p5, F.heat.fill.p95] }]
+      .concat(F.learned ? [{ name: "Learned", label: "Learned", color: css("--s2"), data: F.learned.fill.p50, band: [F.learned.fill.p5, F.learned.fill.p95] }] : []) });
+  drawPolicyTable();
+  lineChart($("mcWaste"), { n: W, shade: F.heat_share, shadeScale: 1.6, xTicks: wt, xLabel: wl, min: 0, fmtY: v => fmt(v / 1000, 0) + "k", labelRoom: 82,
+    series: [{ name: "With power cuts", label: "Power cuts", color: css("--s1"), data: F.habit.waste.p50, band: [F.habit.waste.p5, F.habit.waste.p95] },
+             { name: "No power cuts", label: "No cuts", color: css("--s-muted"), data: F.habit_nocut.waste.p50, band: [F.habit_nocut.waste.p5, F.habit_nocut.waste.p95] }] });
+}
+
+function drawPolicyTable() {
+  const T = MC.policy_table; if (!T || !T.length) return;
+  const rows = T.slice().sort((a, b) => b.visits - a.visits).map(r => {
+    const s = r.state, a = r.action_fields;
+    return `<tr><td>${s.weather}${s.festival ? ", festival" : ""}${s.supply === "Stressed" ? ", supply stressed" : ""}</td><td>${s.season}</td><td>${s.kirana_fill}</td>
+      <td>${a.weather_forecast ? "Weather" : "Habit"}</td><td>+${Math.round(a.margin * 100)}%</td><td>${a.kiranas_first ? "Kiranas & staples first" : "Pro-rata"}</td>
+      <td>${a.twice_daily ? "2" : "1"}</td><td>${fmt(r.visits)}</td></tr>`;
+  }).join("");
+  $("policySection").innerHTML = `<h2 style="margin-top:18px">What the learned policy does</h2>
+    <p class="foot" style="margin:4px 0 0">One row per situation the policy met at least 20 times in training. Situation = this week's weather, festival and village supply, the season, and the share of kirana demand met last week.</p>
+    <div class="tablewrap"><table><thead><tr><th>Conditions</th><th>Season</th><th>Kirana fill last week</th><th>Forecast</th><th>Margin</th><th>When stock is short</th><th>Drops / day</th><th>Weeks seen</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+}
+
+// ------------------------------------------------------------------ wiring
+function draw() { drawStatus(); drawMap(); drawInspector(); drawCharts(); }
+$("play").addEventListener("click", () => { if (twin.day >= CFG.days) reset(); running = !running; $("play").textContent = running ? "Pause" : "Run"; });
+$("stepBtn").addEventListener("click", () => { stepDay(); draw(); });
+$("speed").addEventListener("input", () => { $("speedLab").textContent = `${$("speed").value} days/s`; });
+$("reset").addEventListener("click", () => { running = false; $("play").textContent = "Run"; $("seed").value = (+$("seed").value + 1) % 10000; reset(); });
+$("policy").addEventListener("change", () => { twin.policyName = $("policy").value; pushFeed(twin.day, `Policy switched to ${$("policy").value.toLowerCase()} (takes effect next week)`, ""); drawStatus(); });
+$("heatBtn").addEventListener("click", () => {
+  const w = Math.floor(twin.day / 7); for (let k = 0; k < 3; k++) twin.scen.forced_weather[w + k + 1] = 1;
+  if (twin.regime.weather !== 1) { twin.regime.weather = 1; twin.decide(); }
+  pushFeed(twin.day, "You started a 3-week heat wave", "heat"); draw();
+});
+$("cutBtn").addEventListener("click", () => { cutMode = !cutMode; $("cutBtn").setAttribute("aria-pressed", String(cutMode)); $("mapHint").textContent = cutMode ? "Click a sector to cut its power for 7 hours tomorrow afternoon." : "Click a shop to inspect it. Use “Cut power” then click a sector to black it out tomorrow."; });
+$("batt").addEventListener("input", () => { $("battLab").textContent = $("batt").value + "%"; twin.applyBatteries(+$("batt").value / 100, "risk", new DairyEngine.RNG(99)); twin.scen.battery_fridge_share = +$("batt").value / 100; drawMap(); });
+$("batt").addEventListener("change", () => pushFeed(twin.day, `Battery fridges now in ${$("batt").value}% of kiranas (riskiest feeders first)`, ""));
+$("twice").addEventListener("change", () => { const v = $("twice").value; twin.scen.force_twice_daily = v === "auto" ? null : v === "2"; if (twin.decision) twin.decide(); pushFeed(twin.day, v === "auto" ? "Delivery frequency back to the policy" : `Kirana deliveries forced to ${v === "2" ? "twice" : "once"} a day`, ""); drawStatus(); });
+$("returns").addEventListener("change", () => {
+  const on = $("returns").checked, b = CFG.kirana.returns_k_bonus;
+  for (let i = 0; i < twin.n; i++) twin.kBase[i] += on ? b : -b;
+  twin.scen.kirana_returns = on; pushFeed(twin.day, on ? "Brand now takes back unsold kirana stock: shops order bolder" : "Returns stopped", "");
+});
+[$("cMilk"), $("cFill"), $("cWaste"), $("cBull"), $("mcFill"), $("mcWaste")].forEach(attachHover);
+let rz; window.addEventListener("resize", () => { clearTimeout(rz); rz = setTimeout(() => { draw(); drawMC(); }, 120); });
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => { draw(); drawMC(); });
+new MutationObserver(() => { draw(); drawMC(); }).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+
+// open in a realistic working state: early summer, the heat-aware question live
+selected = 37;
+reset();
+for (let d = 0; d < 120; d++) stepDay();
+draw(); drawMC();
+requestAnimationFrame(loop);
+</script>

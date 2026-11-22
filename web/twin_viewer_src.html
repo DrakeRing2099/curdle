@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dairy Twin – System View</title>
+<style>
+:root{--bg:#f6f5f1;--panel:#fff;--ink:#1d1d1b;--mute:#6b6a66;--line:#e3e1da;--milk:#4f6d8f;--curd:#c79a2a;--paneer:#2f8f83;--butter:#d2652b;--heat:#d7462d;--cut:#6f4bb0;--good:#2e8b57;--bad:#c62828;--flow:#8e8c85;--accent:#1f5f99;--mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 -apple-system,"Segoe UI",Inter,Roboto,sans-serif}
+header{display:flex;flex-wrap:wrap;align-items:center;gap:10px 16px;padding:10px 18px;background:var(--panel);border-bottom:1px solid var(--line)}
+header h1{font-size:17px;margin:0 8px 0 0;font-weight:650;letter-spacing:.01em}
+header .sub{color:var(--mute);font-size:12.5px}
+select,button,input[type=file]{font:inherit}
+select,button{border:1px solid var(--line);background:#fff;border-radius:6px;padding:5px 9px;cursor:pointer;color:var(--ink)}
+button.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+button:disabled{opacity:.45;cursor:default}
+.ctl{display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--mute)}
+.ctl b{color:var(--ink);font-weight:600}
+#status{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;padding:8px 18px;border-bottom:1px solid var(--line);background:#fbfaf7;font-size:13px}
+.badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:12px;font-weight:600;border:1px solid var(--line);background:#fff;color:var(--mute)}
+.badge.on{color:#fff;border-color:transparent}
+.badge.heat{background:var(--heat)}.badge.fest{background:var(--curd)}.badge.supply{background:#8a6d3b}.badge.cut{background:var(--cut)}.badge.flush{background:var(--milk)}.badge.lean{background:#7a7a7a}
+#plan{flex:1 1 380px;font-size:13px}
+#plan b{font-weight:650}
+#plan .state{color:var(--mute);font-size:12px}
+main{padding:10px 18px 4px}
+#stage{background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+svg{display:block;width:100%;height:auto}
+.node rect.box{fill:#fff;stroke:#cfccc3;stroke-width:1}
+.node text.title{font-size:12.5px;font-weight:650;fill:var(--ink)}
+.node text.small{font-size:10.5px;fill:var(--mute)}
+.node text.num{font-family:var(--mono);font-size:10.5px;fill:var(--ink)}
+.bar-bg{fill:#eeece6}
+.flow{fill:none;stroke:var(--flow);stroke-linecap:round;opacity:.75;stroke-dasharray:5 9;animation:dash 1s linear infinite}
+.flow.off{display:none}
+.flow.heat{stroke:var(--heat)}
+.flowlbl{font-family:var(--mono);font-size:10.5px;fill:var(--ink);paint-order:stroke;stroke:#fff;stroke-width:3px;stroke-linejoin:round}
+@keyframes dash{to{stroke-dashoffset:-14}}
+.waste{font-family:var(--mono);font-size:10.5px;fill:var(--bad);paint-order:stroke;stroke:#fff;stroke-width:3px}
+.loc{fill:#fff;stroke:#d9d6cd}
+.loc-cut{fill:var(--cut);pointer-events:none}
+.loclbl{font-size:9.5px;fill:var(--mute)}
+.cuttxt{font-family:var(--mono);font-size:10px;fill:#fff;font-weight:700;paint-order:stroke;stroke:var(--cut);stroke-width:2px;pointer-events:none}
+.shop{stroke:#fff;stroke-width:.6}
+.shop.batt{stroke:#111;stroke-width:1.1}
+.legend text{font-size:10.5px;fill:var(--mute)}
+#bottom{display:grid;grid-template-columns:1fr 430px;gap:10px;padding:10px 18px 18px}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+.panel h3{margin:0 0 6px;font-size:12.5px;font-weight:650;color:var(--mute);text-transform:uppercase;letter-spacing:.05em}
+#tl{position:relative}
+#tlc{width:100%;height:170px;display:block;cursor:crosshair}
+.transport{display:flex;align-items:center;gap:8px;margin-top:6px;flex-wrap:wrap}
+.transport .day{font-family:var(--mono);font-size:13px;min-width:190px}
+#kpis table,#details table{border-collapse:collapse;width:100%;font-size:12px}
+#kpis td,#kpis th,#details td,#details th{padding:3px 6px;border-bottom:1px solid var(--line);text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+#details table.kv td{white-space:normal}
+#details table.kv{table-layout:fixed}#details table.kv td:first-child{width:40%}
+#kpis th:first-child,#kpis td:first-child,#details th:first-child,#details td:first-child{text-align:left}
+#kpis th,#details th{color:var(--mute);font-weight:600;font-size:11px}
+#details{display:none;padding:0 18px 18px}
+#details.show{display:block}
+#details .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(390px,1fr));gap:10px}
+#details .panel{overflow-x:auto}
+#help{display:none;padding:0 18px 18px;color:#333;font-size:13px}
+#help.show{display:block}
+#help p{margin:4px 0}
+#drop{position:fixed;inset:0;background:rgba(31,95,153,.12);border:3px dashed var(--accent);display:none;align-items:center;justify-content:center;font-size:20px;color:var(--accent);z-index:9}
+#drop.show{display:flex}
+.sw{display:inline-block;width:10px;height:10px;border-radius:2px;vertical-align:-1px;margin-right:4px}
+kbd{font:11px var(--mono);border:1px solid var(--line);border-radius:4px;padding:0 4px;background:#fff}
+</style>
+</head>
+<body>
+<header>
+  <h1>Dairy Twin · System View</h1>
+  <span class="sub">one simulated year, replayed day by day from the Python twin</span>
+  <label class="ctl">Run <select id="runSel"></select></label>
+  <label class="ctl"><input type="file" id="file" accept=".json" multiple style="display:none"><button id="loadBtn">Load run JSON…</button></label>
+  <label class="ctl">Product <select id="prodSel"><option value="-1">All</option></select></label>
+  <label class="ctl">Colour shops by <select id="metricSel">
+    <option value="fill">fill today (sales ÷ demand)</option>
+    <option value="stock">stock vs fridge size</option>
+    <option value="k">ordering habit k (hoards after late vans, cuts back after waste)</option>
+    <option value="spoiled">spoiled by power cuts today</option>
+    <option value="hours">hours without power today</option>
+  </select></label>
+  <button id="helpBtn">How to read</button>
+  <button id="detBtn">Details</button>
+</header>
+<div id="status">
+  <span id="dayLbl" style="font-family:var(--mono);font-weight:600"></span>
+  <span id="badges"></span>
+  <span id="plan"></span>
+</div>
+<main><div id="stage"><svg id="svg" viewBox="0 0 1520 680"></svg></div></main>
+<div id="help">
+  <p><b>What you are looking at.</b> Each box is a place that holds dairy stock. Bars inside a box show stock per product against that place's capacity; the darker part of a bar is stock made in the last two days. Moving dashed lines are today's flows, with width and speed set by the number of units; the label is the count. Red numbers under a box are units thrown away there today.</p>
+  <p><b>The kirana city.</b> The grid is the twelve localities, each on its own power feeder. Dots are the 240 kirana shops, coloured by the measure chosen above; shops with a black ring have a battery-backed brand fridge. A locality turns violet while its power is cut, with the hours shown.</p>
+  <p><b>Customers.</b> Households per channel against where they started the year; kirana customers who find an empty shelf may move to the delivery apps (the “spill” arrow) and drift back when kiranas stay stocked.</p>
+  <p><b>The plan.</b> Every Monday the policy reads the twin and chooses the week's plan. For the learned policy the situation it saw (its compressed MDP state) is shown too.</p>
+  <p><b>Timeline.</b> Red bands are heat waves, gold ticks festival weeks, the violet strip at the bottom is how many localities lost power that day. Click or drag to scrub. Other loaded runs appear as faint lines for comparison. Keys: <kbd>space</kbd> play/pause, <kbd>←</kbd> <kbd>→</kbd> one day, <kbd>⇧</kbd>+arrows one week.</p>
+  <p><b>Loading your own run.</b> Export any policy, scenario and seed with <code>python experiments/export_run.py --policy Learned --scenario severe --seed 7</code> and drop the JSON file on this page. Change the twin's code or parameters, re-export, and this page shows the new behaviour.</p>
+</div>
+<div id="bottom">
+  <div class="panel" id="tl">
+    <div class="ctl" style="justify-content:space-between"><h3 style="margin:0">Timeline</h3>
+      <label>Series <select id="seriesSel">
+        <option value="fill">fill by channel, 7-day (%)</option>
+        <option value="lost">lost sales per day (units)</option>
+        <option value="waste">waste per day, all tiers (units)</option>
+        <option value="plant">plant stock at close (units)</option>
+        <option value="cust">kirana households</option>
+        <option value="cash">cash (₹ lakh)</option>
+        <option value="orders">kirana orders vs demand (units)</option>
+      </select></label></div>
+    <canvas id="tlc"></canvas>
+    <div class="transport">
+      <button id="play" class="primary">▶ Play</button>
+      <button id="back7">−7</button><button id="back1">−1</button><button id="fwd1">+1</button><button id="fwd7">+7</button>
+      <label class="ctl">Speed <select id="speed"><option value="2">2 days/s</option><option value="5" selected>5 days/s</option><option value="12">12 days/s</option><option value="30">30 days/s</option></select></label>
+      <span class="day" id="dayLbl2"></span>
+    </div>
+  </div>
+  <div class="panel" id="kpis"><h3>Year to date, every loaded run</h3><div id="kpiTable"></div></div>
+</div>
+<div id="details"><div class="grid" id="detGrid"></div></div>
+<div id="drop">Drop run JSON files here</div>
+
+<script>
+const EMBEDDED = /*RUNS*/[];
+</script>
+<script>
+"use strict";
+const $ = id => document.getElementById(id);
+const PCOL = ["#4f6d8f", "#c79a2a", "#2f8f83", "#d2652b"];
+const CH = ["Kiranas", "Supermarkets", "Delivery apps"];
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const fmt = (v, d = 0) => (v == null || isNaN(v)) ? "–" : Number(v).toLocaleString("en-IN", { maximumFractionDigits: d, minimumFractionDigits: d });
+const sum = a => a.reduce((x, y) => x + y, 0);
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const NS = "http://www.w3.org/2000/svg";
+const el = (tag, attrs = {}, parent = null) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (parent) parent.appendChild(e); return e; };
+const txt = (parent, x, y, s, cls = "", attrs = {}) => { const t = el("text", { x, y, class: cls, ...attrs }, parent); t.textContent = s; return t; };
+
+const S = { runs: [], active: 0, day: 0, playing: false, product: -1, metric: "fill", series: "fill", timer: null };
+
+// ---------------------------------------------------------------- derived series per run
+function prepare(run) {
+  const D = run.days, n = D.length, c = run.city;
+  const roll = (arr, w = 7) => arr.map((_, i) => { const a = arr.slice(Math.max(0, i - w + 1), i + 1); return sum(a) / a.length; });
+  const dem = ch => D.map(d => sum(d.demand[ch])), sal = ch => D.map(d => sum(d.sales[ch]));
+  const fill = [0, 1, 2].map(ch => { const dd = roll(dem(ch)), ss = roll(sal(ch)); return dd.map((x, i) => 100 * ss[i] / Math.max(x, 1)); });
+  const wasteAll = d => sum(d.waste.plant) + sum(d.waste.kirana) + sum(d.waste.mt) + sum(d.waste.qc);
+  run.series = {
+    fill, lost: D.map(d => sum(d.demand.flat()) - sum(d.sales.flat())),
+    waste: D.map(wasteAll), plant: D.map(d => sum(d.plant_stock)), cust: D.map(d => d.customers[0]),
+    cash: D.map(d => d.cash / 1e5), orders: [D.map(d => sum(d.orders[0])), D.map(d => sum(d.demand[0]))],
+    cuts: D.map(d => d.loc_hours.filter(h => h > 0).length), heat: D.map(d => d.weather), fest: D.map(d => d.festival),
+  };
+  run.cum = (() => {
+    let dem = 0, sal = 0, waste = 0;
+    return D.map(d => { dem += sum(d.demand.flat()); sal += sum(d.sales.flat()); waste += wasteAll(d);
+      return { fill: 100 * sal / Math.max(dem, 1), lost: dem - sal, waste, profit: (d.cash - c.opening_cash) / 1e5, hh_lost: c.households0[0] - d.customers[0] }; });
+  })();
+  run.label = `${run.meta.policy.split(":")[0]} · ${run.meta.scenario} · seed ${run.meta.seed}`;
+  return run;
+}
+function addRun(run) {
+  if (!run || !run.days || !run.city) { alert("That file is not a twin run export."); return; }
+  S.runs.push(prepare(run)); S.active = S.runs.length - 1; S.day = 0;
+  const o = document.createElement("option"); o.value = S.runs.length - 1; o.textContent = run.label; $("runSel").appendChild(o); $("runSel").value = S.active;
+  buildStage(); render();
+}
+
+// ---------------------------------------------------------------- stage (built once per run)
+let G = {};   // element handles
+const pick = (arr) => S.product < 0 ? sum(arr) : arr[S.product];
+function bezier(x1, y1, x2, y2) { const mx = (x1 + x2) / 2; return `M${x1},${y1} C${mx},${y1} ${mx},${y2} ${x2},${y2}`; }
+
+function buildStage() {
+  const run = S.runs[S.active], c = run.city, P = c.products.length;
+  const svg = $("svg"); svg.innerHTML = ""; G = { bars: {}, flows: {}, lbls: {}, waste: {}, shops: [], locs: [], cuts: [], cutTxt: [] };
+  const defs = el("defs", {}, svg);
+  const grad = el("linearGradient", { id: "cutg", x1: 0, y1: 0, x2: 0, y2: 1 }, defs);
+  el("stop", { offset: 0, "stop-color": "#6f4bb0", "stop-opacity": .55 }, grad); el("stop", { offset: 1, "stop-color": "#6f4bb0", "stop-opacity": .25 }, grad);
+  const flows = el("g", { id: "flows" }, svg), nodes = el("g", { id: "nodes" }, svg);
+
+  // generic stock node: title, bars per product (stock vs cap), small lines
+  function stockNode(id, x, y, w, h, title, sub) {
+    const g = el("g", { class: "node", transform: `translate(${x},${y})` }, nodes);
+    el("rect", { class: "box", width: w, height: h, rx: 8 }, g);
+    txt(g, 10, 17, title, "title"); if (sub) txt(g, 10, 30, sub, "small");
+    const bars = []; const bw = (w - 20 - (P - 1) * 6) / P;
+    for (let p = 0; p < P; p++) {
+      const bx = 10 + p * (bw + 6), top = 46, bh = h - 70;
+      el("rect", { class: "bar-bg", x: bx, y: top, width: bw, height: bh, rx: 2 }, g);
+      const old = el("rect", { x: bx, y: top + bh, width: bw, height: 0, fill: PCOL[p], opacity: .45 }, g);
+      const fresh = el("rect", { x: bx, y: top + bh, width: bw, height: 0, fill: PCOL[p] }, g);
+      const cap = el("line", { x1: bx, x2: bx + bw, y1: top, y2: top, stroke: "#999", "stroke-dasharray": "2 2" }, g);
+      const num = txt(g, bx + bw / 2, h - 13, "", "num", { "text-anchor": "middle" });
+      txt(g, bx + bw / 2, h - 3, c.products[p].replace("Pouch ", ""), "small", { "text-anchor": "middle" });
+      bars.push({ old, fresh, cap, num, top, bh });
+    }
+    G.bars[id] = bars;
+    G.waste[id] = txt(g, w - 8, 41, "", "waste", { "text-anchor": "end" });
+    return g;
+  }
+  function setBars(id, stock, fresh, cap, scaleMax) {
+    const bars = G.bars[id]; if (!bars) return;
+    for (let p = 0; p < bars.length; p++) {
+      const b = bars[p], mx = Math.max(scaleMax ? scaleMax[p] : cap[p], 1);
+      const hs = clamp(stock[p] / mx, 0, 1) * b.bh, hf = clamp((fresh ? fresh[p] : 0) / mx, 0, 1) * b.bh;
+      b.old.setAttribute("y", b.top + b.bh - hs); b.old.setAttribute("height", hs);
+      b.fresh.setAttribute("y", b.top + b.bh - Math.min(hf, hs)); b.fresh.setAttribute("height", Math.min(hf, hs));
+      const cy = b.top + b.bh - clamp(cap[p] / mx, 0, 1) * b.bh; b.cap.setAttribute("y1", cy); b.cap.setAttribute("y2", cy);
+      b.num.textContent = stock[p] >= 1000 ? (stock[p] / 1000).toFixed(1) + "k" : stock[p];
+      b.old.style.opacity = (S.product >= 0 && S.product !== p) ? .15 : .45; b.fresh.style.opacity = (S.product >= 0 && S.product !== p) ? .3 : 1;
+    }
+  }
+  G.setBars = setBars;
+
+  // --- villages (milk)
+  const vg = el("g", { class: "node", transform: "translate(20,240)" }, nodes);
+  el("rect", { class: "box", width: 150, height: 120, rx: 8 }, vg); txt(vg, 10, 17, "Villages · milk", "title");
+  el("rect", { class: "bar-bg", x: 10, y: 34, width: 130, height: 16, rx: 3 }, vg);
+  G.milkBar = el("rect", { x: 10, y: 34, width: 0, height: 16, rx: 3, fill: PCOL[0] }, vg);
+  G.milkTxt = txt(vg, 10, 66, "", "num"); G.milkSub = txt(vg, 10, 82, "", "small"); G.milkSub2 = txt(vg, 10, 96, "litres against a normal day", "small");
+  G.season = txt(vg, 10, 112, "", "small");
+
+  // --- plant
+  G.made = txt(stockNode("plant", 200, 190, 200, 220, "Plant", ""), 10, 30, "", "small");
+
+  // --- brand warehouse + supermarkets (top)
+  stockNode("dc", 440, 20, 160, 160, "Brand warehouse", "stock, random dwell");
+  stockNode("shelf", 640, 20, 180, 160, "4 supermarkets", "shelf stock vs shelf space");
+  // --- distributor (middle)
+  const dg = el("g", { class: "node", transform: "translate(440,240)" }, nodes);
+  el("rect", { class: "box", width: 160, height: 120, rx: 8 }, dg); txt(dg, 10, 17, "Distributor", "title"); txt(dg, 10, 30, "6 routes, holds nothing overnight", "small");
+  G.distIn = txt(dg, 10, 50, "", "num"); G.distOut = txt(dg, 10, 65, "", "num"); G.distLate = txt(dg, 10, 80, "", "num"); G.distDrops = txt(dg, 10, 95, "", "num");
+  G.waste.dist = txt(dg, 152, 116, "", "waste", { "text-anchor": "end" });
+  // --- dark stores (bottom)
+  const qg = el("g", { class: "node", transform: "translate(440,540)" }, nodes);
+  el("rect", { class: "box", width: 440, height: 130, rx: 8 }, qg); txt(qg, 10, 17, "6 dark stores · delivery apps", "title"); txt(qg, 10, 30, "filled straight from the plant, twice a day, up to free space", "small");
+  G.waste.qc = txt(qg, 432, 17, "", "waste", { "text-anchor": "end" });
+  G.qc = [];
+  for (let s = 0; s < c.n_dark_stores; s++) {
+    const bx = 14 + s * 71, bw = 56, top = 40, bh = 50;
+    el("rect", { class: "bar-bg", x: bx, y: top, width: bw, height: bh, rx: 3 }, qg);
+    const bar = el("rect", { x: bx, y: top + bh, width: bw, height: 0, fill: PCOL[0], rx: 3 }, qg);
+    const num = txt(qg, bx + bw / 2, top + bh + 14, "", "num", { "text-anchor": "middle" });
+    txt(qg, bx + bw / 2, top + bh + 26, "cap " + fmt(c.qc_cap[s]), "small", { "text-anchor": "middle" });
+    G.qc.push({ bar, num, top, bh });
+  }
+  // --- kirana city map
+  const [gx, gy] = c.grid, MX = 870, MY = 200, CW = 105, CHh = 105;
+  const mg = el("g", { class: "node", transform: `translate(${MX - 10},${MY - 30})` }, nodes);
+  el("rect", { class: "box", width: gx * CW + 20, height: gy * CHh + 50, rx: 8 }, mg);
+  txt(mg, 10, 17, "240 kirana shops · 12 localities on 12 power feeders", "title");
+  G.waste.kir = txt(mg, gx * CW + 12, gy * CHh + 44, "", "waste", { "text-anchor": "end" });
+  const map = el("g", { transform: `translate(${MX},${MY})` }, nodes);
+  for (let l = 0; l < gx * gy; l++) {
+    const lx = l % gx, ly = Math.floor(l / gx);
+    G.locs.push(el("rect", { class: "loc", x: lx * CW, y: ly * CHh, width: CW, height: CHh }, map));
+    G.cuts.push(el("rect", { class: "loc-cut", x: lx * CW, y: ly * CHh, width: CW, height: CHh, opacity: 0 }, map));
+    txt(map, lx * CW + 4, ly * CHh + 11, `L${l + 1} · feeder ×${c.feeder_risk[l].toFixed(1)}`, "loclbl");
+    G.cutTxt.push(txt(map, lx * CW + CW - 4, ly * CHh + CHh - 5, "", "cuttxt", { "text-anchor": "end" }));
+  }
+  for (let i = 0; i < c.shop_pos.length; i++) {
+    const [px, py] = c.shop_pos[i];
+    const r = clamp(Math.sqrt(c.shop_fridge_cap[i]) / 7, 2.2, 5.5);
+    const s = el("circle", { class: "shop" + (c.shop_battery[i] ? " batt" : ""), cx: px * CW, cy: py * CHh, r, fill: "#999" }, map);
+    const t = el("title", {}, s); G.shops.push({ s, t });
+  }
+  // --- customers
+  const cg = el("g", { class: "node", transform: "translate(1320,20)" }, nodes);
+  el("rect", { class: "box", width: 190, height: 150, rx: 8 }, cg); txt(cg, 10, 17, "Customers", "title"); txt(cg, 10, 30, "households, change since January", "small");
+  G.cust = [];
+  for (let ch = 0; ch < 3; ch++) {
+    const y = 46 + ch * 32;
+    txt(cg, 10, y + 10, CH[ch], "small");
+    el("rect", { class: "bar-bg", x: 95, y, width: 65, height: 14, rx: 3 }, cg);
+    const bar = el("rect", { x: 95, y, width: 0, height: 14, rx: 3, fill: ch === 0 ? "#555" : (ch === 1 ? "#8d8d8d" : "#b36b2a") }, cg);
+    const num = txt(cg, 10, y + 24, "", "num"); G.cust.push({ bar, num });
+  }
+  // --- today's demand per channel (served / lost)
+  const sg = el("g", { class: "node", transform: "translate(1320,200)" }, nodes);
+  el("rect", { class: "box", width: 190, height: 470, rx: 8 }, sg); txt(sg, 10, 17, "Today's demand", "title"); txt(sg, 10, 30, "served (green) and lost (red)", "small");
+  G.serve = [];
+  for (let ch = 0; ch < 3; ch++) {
+    const y = 46 + ch * 140;
+    txt(sg, 10, y + 10, CH[ch], "small");
+    el("rect", { class: "bar-bg", x: 10, y: y + 16, width: 170, height: 18, rx: 3 }, sg);
+    const ok = el("rect", { x: 10, y: y + 16, width: 0, height: 18, rx: 3, fill: "#2e8b57" }, sg);
+    const lost = el("rect", { x: 10, y: y + 16, width: 0, height: 18, fill: "#c62828" }, sg);
+    const n1 = txt(sg, 10, y + 50, "", "num"), n2 = txt(sg, 10, y + 65, "", "num"), n3 = txt(sg, 10, y + 80, "", "num"), n4 = txt(sg, 10, y + 95, "", "num");
+    G.serve.push({ ok, lost, n1, n2, n3, n4 });
+  }
+
+  // --- flows
+  function flow(id, x1, y1, x2, y2, lx, ly, anchor = "middle") {
+    G.flows[id] = el("path", { class: "flow", d: bezier(x1, y1, x2, y2) }, flows);
+    G.lbls["f_" + id] = txt(flows, lx, ly, "", "flowlbl", { "text-anchor": anchor });
+  }
+  flow("milk", 170, 300, 200, 300, 185, 290);
+  flow("p_dc", 400, 240, 440, 100, 420, 165, "middle");
+  flow("p_dist", 400, 300, 440, 300, 420, 290);
+  flow("p_qc", 400, 370, 440, 600, 420, 480);
+  flow("dc_shelf", 600, 100, 640, 100, 620, 90);
+  flow("dist_city", 600, 300, MX - 10, 300, 735, 290);
+  flow("shelf_cust", 820, 100, 1320, 330, 1000, 130);
+  flow("qc_cust", 880, 600, 1320, 600, 1100, 592);
+  flow("spill", MX + gx * CW - 80, MY + gy * CHh + 20, 880, 610, 1060, 520, "middle");
+  G.flows.spill.setAttribute("stroke", "#b36b2a");
+  // legend
+  const lg = el("g", { class: "legend", transform: "translate(20,672)" }, nodes);
+  G.legend = lg;
+}
+
+// ---------------------------------------------------------------- per-day render
+function setFlow(id, units, label, heat = false) {
+  const p = G.flows[id], l = G.lbls["f_" + id];
+  if (!p) return;
+  if (units <= 0) { p.classList.add("off"); l.textContent = ""; return; }
+  p.classList.remove("off"); p.classList.toggle("heat", heat);
+  p.setAttribute("stroke-width", clamp(1.2 + Math.sqrt(units) / 14, 1.2, 15));
+  p.style.animationDuration = clamp(6 / Math.log10(units + 10), 0.25, 3) + "s";
+  l.textContent = label != null ? label : (units >= 1000 ? (units / 1000).toFixed(1) + "k" : fmt(units));
+}
+function metricColour(run, d, i) {
+  const c = run.city;
+  const ramp = (t, lo = [214, 70, 45], hi = [46, 139, 87]) => { t = clamp(t, 0, 1); return `rgb(${lo.map((a, k) => Math.round(a + (hi[k] - a) * t)).join(",")})`; };
+  switch (S.metric) {
+    case "fill": { const f = d.shop_fill[i]; return f < 0 ? "#bbb" : ramp((f - 60) / 40); }
+    case "stock": return ramp(d.shop_stock[i] / Math.max(c.shop_fridge_cap[i], 1), [230, 230, 225], [79, 109, 143]);
+    case "k": return ramp((d.shop_k[i] / 100 - 1.0) / 0.8, [120, 140, 160], [211, 101, 43]);
+    case "spoiled": return d.shop_spoiled[i] > 0 ? ramp(d.shop_spoiled[i] / 60, [245, 200, 190], [214, 70, 45]) : "#d8d6cf";
+    case "hours": { const h = d.loc_hours[c.shop_locality[i]]; const eff = c.shop_battery[i] ? Math.max(0, h - 4) : h; return eff > 0 ? ramp(eff / 8, [220, 210, 240], [111, 75, 176]) : "#d8d6cf"; }
+  }
+}
+function render() {
+  const run = S.runs[S.active]; if (!run) return;
+  const c = run.city, D = run.days, d = D[S.day], week = Math.floor(S.day / 7), prev = D[S.day - 1];
+  const heat = d.weather === 1;
+  const lbl = `Day ${S.day + 1} · week ${week + 1} · ${MONTHS[Math.min(11, Math.floor(S.day / D.length * 12))]}`;
+  $("dayLbl").textContent = lbl; $("dayLbl2").textContent = lbl;
+  const b = [];
+  b.push(`<span class="badge ${heat ? "on heat" : ""}">${heat ? "Heat wave" : "Normal weather"}</span>`);
+  if (d.festival) b.push(`<span class="badge on fest">Festival week</span>`);
+  if (d.supply) b.push(`<span class="badge on supply">Milk supply stressed</span>`);
+  if (d.flush) b.push(`<span class="badge on flush">Flush season</span>`); if (d.lean) b.push(`<span class="badge on lean">Lean season</span>`);
+  const cuts = d.loc_hours.filter(h => h > 0).length;
+  b.push(`<span class="badge ${cuts ? "on cut" : ""}">${cuts ? `Power cut in ${cuts} of ${d.loc_hours.length} localities` : "Power on everywhere"}</span>`);
+  $("badges").innerHTML = b.join(" ");
+  const w = run.weeks[week];
+  if (w) {
+    const st = w.state ? ` <span class="state">· situation seen: ${w.state.weather}${w.state.festival ? ", festival" : ""}${w.state.supply === "Stressed" ? ", supply stressed" : ""}, ${String(w.state.season).toLowerCase()} season, kirana fill last week ${w.state.kirana_fill}</span>` : "";
+    $("plan").innerHTML = `<b>This week's plan (${run.meta.policy.split(":")[0]}):</b> ${w.label} · hold at plant: ${c.products.map((p, i) => `${p.replace("Pouch ", "").toLowerCase()} ${fmt(w.plan[i] / 1000, 1)}k`).join(", ")}${st}`;
+  }
+  // villages
+  const milkRef = Math.max(...D.map(x => x.milk)); G.milkBar.setAttribute("width", 130 * clamp(d.milk / milkRef, 0, 1));
+  G.milkTxt.textContent = `${fmt(d.milk)} L collected`; G.milkSub.textContent = `${fmt(d.milk_used)} L used`; G.milkSub2.textContent = "bar: against the year's best day";
+  G.season.textContent = d.flush ? "flush: cows give more" : d.lean ? "lean: cows give less" : (d.supply ? "stressed: disease / fodder" : "normal supply");
+  // plant
+  G.setBars("plant", d.made, d.made, c.plant_capacity);
+  G.made.textContent = `made today vs capacity · at close: ${d.plant_stock.map(x => fmt(x)).join(" / ")}`;
+  G.waste.plant.textContent = pick(d.waste.plant) ? `−${fmt(pick(d.waste.plant))} expired` : "";
+  // warehouse / shelves
+  const dcMax = c.products.map((_, p) => Math.max(...D.map(x => x.mt_dc[p]), 1));
+  G.setBars("dc", d.mt_dc, null, dcMax, dcMax); G.bars.dc.forEach(bb => bb.cap.style.display = "none");
+  G.setBars("shelf", d.mt_shelf, null, c.mt_shelf_cap);
+  G.waste.dc.textContent = pick(d.waste.mt) ? `−${fmt(pick(d.waste.mt))} expired` : ""; G.waste.shelf.textContent = "";
+  // distributor
+  G.distIn.textContent = `ordered by shops: ${fmt(pick(d.orders[0]))}`; G.distOut.textContent = `loaded at plant: ${fmt(pick(d.shipped[0]))}`;
+  G.distLate.textContent = d.late_shops ? `${d.late_shops} shops got a late van` : "all vans on time";
+  G.distDrops.textContent = d.twice_daily ? "two drops a day (noon drop after cuts)" : "one morning drop";
+  G.waste.dist.textContent = pick(d.refused) ? `${fmt(pick(d.refused))} refused, back to plant` : "";
+  // dark stores
+  for (let s = 0; s < G.qc.length; s++) { const q = G.qc[s], v = d.qc_store[s], h = clamp(v / Math.max(c.qc_cap[s], 1), 0, 1) * q.bh; q.bar.setAttribute("y", q.top + q.bh - h); q.bar.setAttribute("height", h); q.num.textContent = fmt(v); }
+  G.waste.qc.textContent = pick(d.waste.qc) ? `−${fmt(pick(d.waste.qc))} expired` : "";
+  // map
+  for (let l = 0; l < G.locs.length; l++) { const h = d.loc_hours[l]; G.cuts[l].setAttribute("opacity", h > 0 ? clamp(0.25 + h / 10, 0.25, 0.8) : 0); G.cutTxt[l].textContent = h > 0 ? `${h.toFixed(1)} h cut` : ""; }
+  for (let i = 0; i < G.shops.length; i++) {
+    const sh = G.shops[i]; sh.s.setAttribute("fill", metricColour(run, d, i));
+    sh.t.textContent = `Shop ${i + 1} · locality L${c.shop_locality[i] + 1} · route ${c.shop_route[i] + 1}${c.shop_battery[i] ? " · battery fridge" : ""}\nstock ${d.shop_stock[i]} of fridge ${c.shop_fridge_cap[i]} · fill today ${d.shop_fill[i] < 0 ? "–" : d.shop_fill[i] + "%"} · order multiplier k ${(d.shop_k[i] / 100).toFixed(2)}\nspoiled by cut today ${d.shop_spoiled[i]}`;
+  }
+  const kw = pick(d.waste.kirana), kr = pick(d.waste.returned);
+  G.waste.kir.textContent = kw ? `−${fmt(kw)} thrown away${kr ? ` (${fmt(kr)} returned)` : ""}` : "";
+  // customers
+  for (let ch = 0; ch < 3; ch++) { const g = G.cust[ch], h0 = c.households0[ch], v = d.customers[ch]; g.bar.setAttribute("width", 65 * clamp(v / (h0 * 1.25), 0, 1)); g.num.textContent = `${fmt(v)} (${v - h0 >= 0 ? "+" : ""}${fmt(v - h0)})`; }
+  for (let ch = 0; ch < 3; ch++) {
+    const g = G.serve[ch], dem = pick(d.demand[ch]), sal = pick(d.sales[ch]), lost = dem - sal, mx = Math.max(...D.map(x => pick(x.demand[ch])), 1);
+    g.ok.setAttribute("width", 170 * sal / mx); g.lost.setAttribute("x", 10 + 170 * sal / mx); g.lost.setAttribute("width", 170 * lost / mx);
+    g.n1.textContent = `demand ${fmt(dem)}`; g.n2.textContent = `served ${fmt(sal)} (${(100 * sal / Math.max(dem, 1)).toFixed(1)}%)`; g.n3.textContent = `lost ${fmt(lost)}`;
+    g.n4.textContent = ch === 0 ? `${fmt(pick(d.spill))} units went to apps` : (ch === 2 ? `${fmt(d.migrated)} moved here from kiranas` : "");
+  }
+  // flows
+  setFlow("milk", d.milk_used, "");
+  setFlow("p_dc", pick(d.shipped[1])); setFlow("p_dist", pick(d.shipped[0]), null, heat && d.twice_daily); setFlow("p_qc", pick(d.shipped[2]));
+  const dcOut = prev ? Math.max(0, pick(prev.mt_dc) + pick(d.shipped[1]) - pick(d.mt_dc) - pick(d.waste.mt)) : pick(d.shipped[1]);
+  setFlow("dc_shelf", dcOut);
+  setFlow("dist_city", pick(d.shipped[0]) - pick(d.refused), null, heat && d.twice_daily);
+  setFlow("shelf_cust", pick(d.sales[1])); setFlow("qc_cust", pick(d.sales[2]));
+  setFlow("spill", pick(d.spill), `${fmt(pick(d.spill))} spill`);
+  // legend
+  const lg = G.legend; lg.innerHTML = "";
+  const items = { fill: [["#d6462d", "fill ≤ 60%"], ["#8f7a4a", "80%"], ["#2e8b57", "100%"], ["#bbb", "no demand yet"]],
+    stock: [["#e6e6e1", "empty fridge"], ["#4f6d8f", "full fridge"]], k: [["#788ca0", "k = 1.0: orders what usually sells"], ["#d2652b", "k = 1.8: hoarding after late vans"]],
+    spoiled: [["#d8d6cf", "none"], ["#d6462d", "60+ units spoiled"]], hours: [["#d8d6cf", "power on"], ["#6f4bb0", "8 h without power (battery covers 4 h)"]] }[S.metric];
+  let x = 0; items.forEach(([col, t]) => { el("circle", { cx: x + 5, cy: -4, r: 5, fill: col }, lg); txt(lg, x + 14, 0, t); x += 14 + t.length * 6.2 + 18; });
+  el("circle", { cx: x + 5, cy: -4, r: 5, fill: "#999", stroke: "#111", "stroke-width": 1.2 }, lg); txt(lg, x + 14, 0, "battery-backed brand fridge"); x += 190;
+  el("line", { x1: x, x2: x + 28, y1: -4, y2: -4, class: "flow", "stroke-width": 3 }, lg); txt(lg, x + 34, 0, "today's flow (width, speed = units)"); x += 230;
+  el("line", { x1: x, x2: x + 28, y1: -4, y2: -4, class: "flow heat", "stroke-width": 3 }, lg); txt(lg, x + 34, 0, "heat-wave mode: kiranas first, two drops");
+  drawTimeline(); drawKPIs(); if ($("details").classList.contains("show")) drawDetails();
+}
+
+// ---------------------------------------------------------------- timeline
+function drawTimeline() {
+  const cv = $("tlc"), run = S.runs[S.active]; if (!run) return;
+  const W = cv.clientWidth, H = 170; cv.width = W * devicePixelRatio; cv.height = H * devicePixelRatio;
+  const g = cv.getContext("2d"); g.scale(devicePixelRatio, devicePixelRatio); g.clearRect(0, 0, W, H);
+  const n = run.days.length, L = 46, R = W - 10, T = 8, B = H - 30, xOf = i => L + (R - L) * i / (n - 1);
+  const seriesOf = r => { const s = r.series; switch (S.series) { case "fill": return s.fill; case "orders": return s.orders; default: return [s[S.series]]; } };
+  const lines = seriesOf(run), all = lines.flat().concat(S.runs.filter(r => r !== run).flatMap(r => seriesOf(r)[0]));
+  let lo = Math.min(...all), hi = Math.max(...all); if (S.series === "fill") { lo = Math.min(lo, 70); hi = 100; } if (lo === hi) hi = lo + 1; if (S.series !== "fill" && S.series !== "cash" && S.series !== "cust") lo = Math.min(lo, 0);
+  const yOf = v => B - (B - T) * (v - lo) / (hi - lo);
+  // heat bands, festival ticks
+  run.series.heat.forEach((h, i) => { if (h) { g.fillStyle = "rgba(215,70,45,.13)"; g.fillRect(xOf(i), T, (R - L) / (n - 1) + .5, B - T); } });
+  run.series.fest.forEach((f, i) => { if (f && i % 7 === 0) { g.fillStyle = "rgba(199,154,42,.9)"; g.fillRect(xOf(i), T, 2, 6); } });
+  // outage strip
+  const nl = run.days[0].loc_hours.length;
+  run.series.cuts.forEach((k, i) => { if (k) { g.fillStyle = `rgba(111,75,176,${0.15 + 0.85 * k / nl})`; g.fillRect(xOf(i), B + 3, (R - L) / (n - 1) + .5, 8); } });
+  // axes
+  g.strokeStyle = "#ddd"; g.fillStyle = "#777"; g.font = "10px -apple-system,Segoe UI,sans-serif"; g.textAlign = "right";
+  [lo, (lo + hi) / 2, hi].forEach(v => { const y = yOf(v); g.beginPath(); g.moveTo(L, y); g.lineTo(R, y); g.stroke(); g.fillText(fmt(v, S.series === "fill" ? 0 : (hi - lo < 50 ? 1 : 0)), L - 4, y + 3); });
+  g.textAlign = "center"; for (let m = 0; m < 12; m++) g.fillText(MONTHS[m], xOf(Math.round(m * (n - 1) / 12 + n / 24)), H - 6);
+  const cols = S.series === "fill" ? ["#444", "#8d8d8d", "#b36b2a"] : S.series === "orders" ? ["#1f5f99", "#999"] : ["#1f5f99"];
+  const plot = (arr, col, width, alpha) => { g.strokeStyle = col; g.globalAlpha = alpha; g.lineWidth = width; g.beginPath(); arr.forEach((v, i) => i ? g.lineTo(xOf(i), yOf(v)) : g.moveTo(xOf(i), yOf(v))); g.stroke(); g.globalAlpha = 1; };
+  S.runs.forEach(r => { if (r !== run) plot(seriesOf(r)[0], "#1d1d1b", 1, .18); });
+  lines.forEach((arr, k) => plot(arr, cols[k], 1.6, 1));
+  // cursor
+  const x = xOf(S.day); g.strokeStyle = "#1d1d1b"; g.lineWidth = 1.2; g.beginPath(); g.moveTo(x, T); g.lineTo(x, B + 11); g.stroke();
+  g.fillStyle = "#1d1d1b"; g.textAlign = x > W - 160 ? "right" : "left"; g.font = "11px ui-monospace,Menlo,monospace";
+  const lab = S.series === "fill" ? lines.map((a, k) => `${CH[k]} ${a[S.day].toFixed(1)}%`).join("  ") : S.series === "orders" ? `orders ${fmt(lines[0][S.day])} · demand ${fmt(lines[1][S.day])}` : fmt(lines[0][S.day], S.series === "cash" ? 1 : 0);
+  g.fillText(lab, x + (x > W - 160 ? -5 : 5), T + 10);
+  // legend for multi-line
+  if (S.series === "fill" || S.series === "orders") { g.textAlign = "left"; g.font = "10px -apple-system,Segoe UI,sans-serif"; let lx = L + 4; (S.series === "fill" ? CH : ["kirana orders", "kirana demand"]).forEach((nm, k) => { g.fillStyle = cols[k]; g.fillRect(lx, B - 10, 10, 3); g.fillStyle = "#555"; g.fillText(nm, lx + 13, B - 6); lx += 16 + nm.length * 5.6; }); }
+  cv._xOf = xOf; cv._L = L; cv._R = R;
+}
+function drawKPIs() {
+  const rows = S.runs.map((r, i) => { const k = r.cum[Math.min(S.day, r.cum.length - 1)]; return `<tr${i === S.active ? ' style="font-weight:650"' : ""}><td>${r.label}</td><td>${k.fill.toFixed(1)}%</td><td>${fmt(k.lost / 1000, 0)}k</td><td>${fmt(k.waste / 1000, 0)}k</td><td>${fmt(k.profit, 0)}</td><td>${fmt(k.hh_lost)}</td></tr>`; }).join("");
+  $("kpiTable").innerHTML = `<table><thead><tr><th>run</th><th>fill</th><th>lost</th><th>waste</th><th>profit ₹L</th><th>hh lost</th></tr></thead><tbody>${rows}</tbody></table><div style="font-size:11px;color:var(--mute);margin-top:4px">Through day ${S.day + 1}. Bold = run on screen. Load more runs to compare policies or scenarios on the same seed.</div>`;
+}
+function drawDetails() {
+  const run = S.runs[S.active], c = run.city, d = run.days[S.day], P = c.products.map(p => p.replace("Pouch ", ""));
+  const tbl = (title, head, rows) => `<div class="panel"><h3>${title}</h3><table class="${head.length === 1 ? "kv" : ""}"><thead><tr><th></th>${head.map(h => `<th>${h}</th>`).join("")}</tr></thead><tbody>${rows.map(r => `<tr><td>${r[0]}</td>${r.slice(1).map(v => `<td>${v}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`;
+  const byCh = (key) => CH.map((ch, i) => [ch, ...P.map((_, p) => fmt(d[key][i][p])), fmt(sum(d[key][i]))]);
+  const lostRows = CH.map((ch, i) => [ch, ...P.map((_, p) => fmt(d.demand[i][p] - d.sales[i][p])), fmt(sum(d.demand[i]) - sum(d.sales[i]))]);
+  const w = run.weeks[Math.floor(S.day / 7)] || {};
+  $("detGrid").innerHTML = [
+    tbl("Orders placed last night", [...P, "all"], byCh("orders")), tbl("Shipped from plant today", [...P, "all"], byCh("shipped")),
+    tbl("Demand", [...P, "all"], byCh("demand")), tbl("Sales", [...P, "all"], byCh("sales")), tbl("Lost sales", [...P, "all"], lostRows),
+    tbl("Stock at close", [...P, "all"], [["Plant", ...d.plant_stock.map(v => fmt(v)), fmt(sum(d.plant_stock))], ["  of which ≤ 2 days old", ...d.plant_fresh.map(v => fmt(v)), fmt(sum(d.plant_fresh))],
+      ["Brand warehouse", ...d.mt_dc.map(v => fmt(v)), fmt(sum(d.mt_dc))], ["Supermarket shelves", ...d.mt_shelf.map(v => fmt(v)), fmt(sum(d.mt_shelf))], ["Dark stores", ...d.qc_store_p.map(v => fmt(v)), fmt(sum(d.qc_store_p))], ["Kirana fridges (all products)", "", "", "", "", fmt(sum(d.shop_stock))]]),
+    tbl("Waste today", [...P, "all"], [["Plant", ...d.waste.plant.map(v => fmt(v)), fmt(sum(d.waste.plant))], ["Kiranas", ...d.waste.kirana.map(v => fmt(v)), fmt(sum(d.waste.kirana))], ["  of which returned", ...d.waste.returned.map(v => fmt(v)), fmt(sum(d.waste.returned))], ["Supermarket chain", ...d.waste.mt.map(v => fmt(v)), fmt(sum(d.waste.mt))], ["Dark stores", ...d.waste.qc.map(v => fmt(v)), fmt(sum(d.waste.qc))]]),
+    tbl("Money and people", ["value"], [["Revenue today", "₹" + fmt(d.revenue)], ["Cost today", "₹" + fmt(d.cost)], ["Cash", "₹" + fmt(d.cash / 1e5, 1) + " lakh"], ["Milk collected / used", `${fmt(d.milk)} / ${fmt(d.milk_used)} L`], ["Made today", d.made.map(v => fmt(v)).join(" / ")], ["Refused at shops (back to plant)", d.refused.map(v => fmt(v)).join(" / ")], ["Kirana spill to apps", d.spill.map(v => fmt(v)).join(" / ")], ["Households K / S / A", d.customers.map(v => fmt(v)).join(" / ")], ["Kirana households now on apps", fmt(d.migrated)], ["Shops with late van", d.late_shops], ["Localities without power", d.loc_hours.map((h, l) => h > 0 ? `L${l + 1} ${h}h` : null).filter(Boolean).join(", ") || "none"]]),
+    tbl("This week's plan", ["value"], [["Policy", run.meta.policy], ["Plan", w.label || ""], ["Hold at plant", (w.plan || []).map(v => fmt(v)).join(" / ")], ["Kirana fill, previous 7 days", w.kirana_fill_7d != null ? (100 * w.kirana_fill_7d).toFixed(1) + "%" : ""], ["Situation (learned policy)", w.state ? `${w.state.weather}, ${w.state.festival ? "festival" : "no festival"}, supply ${String(w.state.supply).toLowerCase()}, ${String(w.state.season).toLowerCase()} season, kirana fill ${w.state.kirana_fill}` : "–"]]),
+    tbl("Run settings", ["value"], [["Scenario", run.meta.scenario], ["Seed / city seed", `${run.meta.seed} / ${run.meta.city_seed}`], ["Battery fridges", `${Math.round(run.meta.battery_share * 100)}% (${run.meta.battery_targeting})`], ["Kirana returns", run.meta.kirana_returns ? "yes" : "no"], ["Power cuts", run.meta.outages_enabled ? "on" : "off"], ["Forced heat weeks", run.meta.forced_heat_weeks.length ? run.meta.forced_heat_weeks.map(w => w + 1).join(", ") : "none"], ["Shelf life (days)", c.shelf_life.join(" / ")], ["Plant capacity", c.plant_capacity.map(v => fmt(v)).join(" / ")]]),
+  ].join("");
+}
+
+// ---------------------------------------------------------------- transport & input
+function setDay(i) { const n = S.runs[S.active].days.length; S.day = clamp(i, 0, n - 1); render(); }
+function play(on) { S.playing = on; $("play").textContent = on ? "❚❚ Pause" : "▶ Play"; clearInterval(S.timer); if (on) S.timer = setInterval(() => { if (S.day >= S.runs[S.active].days.length - 1) play(false); else setDay(S.day + 1); }, 1000 / +$("speed").value); }
+$("play").onclick = () => play(!S.playing); $("speed").onchange = () => { if (S.playing) play(true); };
+$("back1").onclick = () => setDay(S.day - 1); $("fwd1").onclick = () => setDay(S.day + 1); $("back7").onclick = () => setDay(S.day - 7); $("fwd7").onclick = () => setDay(S.day + 7);
+document.addEventListener("keydown", e => { if (e.target.tagName === "SELECT" || e.target.tagName === "INPUT") return; const st = e.shiftKey ? 7 : 1; if (e.code === "Space") { e.preventDefault(); play(!S.playing); } else if (e.key === "ArrowLeft") setDay(S.day - st); else if (e.key === "ArrowRight") setDay(S.day + st); });
+const scrub = e => { const cv = $("tlc"), r = cv.getBoundingClientRect(), x = e.clientX - r.left, n = S.runs[S.active].days.length; setDay(Math.round((x - cv._L) / (cv._R - cv._L) * (n - 1))); };
+$("tlc").addEventListener("mousedown", e => { scrub(e); const mv = ev => scrub(ev); window.addEventListener("mousemove", mv); window.addEventListener("mouseup", () => window.removeEventListener("mousemove", mv), { once: true }); });
+$("runSel").onchange = e => { S.active = +e.target.value; buildStage(); render(); };
+$("prodSel").onchange = e => { S.product = +e.target.value; render(); };
+$("metricSel").onchange = e => { S.metric = e.target.value; render(); };
+$("seriesSel").onchange = e => { S.series = e.target.value; drawTimeline(); };
+$("helpBtn").onclick = () => $("help").classList.toggle("show");
+$("detBtn").onclick = () => { $("details").classList.toggle("show"); if ($("details").classList.contains("show")) drawDetails(); };
+$("loadBtn").onclick = () => $("file").click();
+const readFiles = files => [...files].forEach(f => f.text().then(t => { try { addRun(JSON.parse(t)); } catch (e) { alert("Could not read " + f.name + ": " + e.message); } }));
+$("file").onchange = e => readFiles(e.target.files);
+window.addEventListener("dragover", e => { e.preventDefault(); $("drop").classList.add("show"); });
+window.addEventListener("dragleave", e => { if (!e.relatedTarget) $("drop").classList.remove("show"); });
+window.addEventListener("drop", e => { e.preventDefault(); $("drop").classList.remove("show"); readFiles(e.dataTransfer.files); });
+window.addEventListener("resize", drawTimeline);
+
+// ---------------------------------------------------------------- start
+(function init() {
+  EMBEDDED.forEach(addRun);
+  if (S.runs.length) { const ps = $("prodSel"); S.runs[0].city.products.forEach((p, i) => { const o = document.createElement("option"); o.value = i; o.textContent = p; ps.appendChild(o); }); S.active = 0; $("runSel").value = 0; buildStage(); render(); }
+  else { $("plan").innerHTML = "<b>No run loaded.</b> Export one with <code>python experiments/export_run.py</code> and drop the JSON here."; }
+})();
+</script>
+</body>
+</html>

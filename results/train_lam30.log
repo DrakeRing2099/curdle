@@ -1,0 +1,7 @@
+lambda=30 round 10/75 eps=0.45 mean annual reward 743.7 lakh  (161s)
+lambda=30 round 20/75 eps=0.38 mean annual reward 744.2 lakh  (326s)
+lambda=30 round 30/75 eps=0.32 mean annual reward 766.9 lakh  (495s)
+lambda=30 round 40/75 eps=0.26 mean annual reward 778.4 lakh  (666s)
+lambda=30 round 50/75 eps=0.20 mean annual reward 819.6 lakh  (836s)
+lambda=30 round 60/75 eps=0.14 mean annual reward 817.9 lakh  (1007s)
+lambda=30 round 70/75 eps=0.08 mean annual reward 817.0 lakh  (1190s)

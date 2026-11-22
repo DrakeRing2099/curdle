@@ -1,0 +1,12 @@
+habit                   134.4s
+heat                    132.2s
+habit_batt_risk         109.0s
+habit_batt_rand         111.7s
+habit_returns           109.5s
+heat_batt               114.2s
+habit_nocut             108.1s
+habit_severe            109.1s
+heat_severe             111.2s
+heat_batt_severe        111.1s
+habit_severe_nocut      105.2s
+total 1257s

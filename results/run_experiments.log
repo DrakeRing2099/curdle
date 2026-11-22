@@ -1,0 +1,16 @@
+habit                    80.7s
+heat                     85.8s
+habit_batt_risk          91.3s
+habit_batt_rand          89.5s
+habit_returns            83.8s
+heat_batt                81.1s
+habit_nocut              78.2s
+habit_severe             80.0s
+heat_severe              78.4s
+heat_batt_severe         79.5s
+habit_severe_nocut       75.6s
+learned                  89.2s
+learned_severe           91.4s
+learned_lam0             86.9s
+learned_lam30            89.4s
+total 1262s

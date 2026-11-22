@@ -1,0 +1,1273 @@
+<!DOCTYPE html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dairy Twin Control Room</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a dispatch-room console. Status strip on top, the live city map as the main
+   instrument with shocks and the shop inspector beside it, live traces below, then the
+   Monte Carlo evidence from the Python twin. */
+:root {
+  --bg: #eef2f4; --panel: #ffffff; --panel-2: #f6f8f9; --ink: #12202a; --ink-2: #4b5c67; --muted: #7a8993;
+  --rule: #d8e0e5; --rule-2: #e7ecef; --accent: #1f6fd1; --accent-ink: #ffffff;
+  --heat: #e8692f; --heat-tint: rgba(232,105,47,.10); --cut: #c98a00; --cut-tint: rgba(237,161,0,.16);
+  --bad: #cf3b3b; --good: #158a60;
+  --s1: #2a78d6; --s2: #1baf7a; --s3: #6250d6; --s-muted: #9aa6ae;
+  --seq-0: #e3eef9; --seq-1: #b7d3f6; --seq-2: #6da7ec; --seq-3: #2a78d6; --seq-4: #184f95;
+  --f-display: "Barlow Condensed", "Arial Narrow", "Roboto Condensed", sans-serif;
+  --f-body: "Barlow", "Segoe UI", system-ui, sans-serif;
+  --f-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --r: 6px;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0d151b; --panel: #141f27; --panel-2: #1a2730; --ink: #e2e9ee; --ink-2: #a7b6c0; --muted: #7d8d98;
+  --rule: #263540; --rule-2: #1e2c35; --accent: #4a92e8; --accent-ink: #08121a;
+  --heat: #f07b45; --heat-tint: rgba(240,123,69,.13); --cut: #e0a21a; --cut-tint: rgba(224,162,26,.18);
+  --bad: #ef6464; --good: #2fb383;
+  --s1: #3987e5; --s2: #199e70; --s3: #9085e9; --s-muted: #6c7c87;
+  --seq-0: #1b2c3a; --seq-1: #184f95; --seq-2: #2a78d6; --seq-3: #5598e7; --seq-4: #9ec5f4;
+  color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --bg: #0d151b; --panel: #141f27; --panel-2: #1a2730; --ink: #e2e9ee; --ink-2: #a7b6c0; --muted: #7d8d98;
+  --rule: #263540; --rule-2: #1e2c35; --accent: #4a92e8; --accent-ink: #08121a;
+  --heat: #f07b45; --heat-tint: rgba(240,123,69,.13); --cut: #e0a21a; --cut-tint: rgba(224,162,26,.18);
+  --bad: #ef6464; --good: #2fb383;
+  --s1: #3987e5; --s2: #199e70; --s3: #9085e9; --s-muted: #6c7c87;
+  --seq-0: #1b2c3a; --seq-1: #184f95; --seq-2: #2a78d6; --seq-3: #5598e7; --seq-4: #9ec5f4;
+  color-scheme: dark; }
+
+* { box-sizing: border-box; }
+html, body { background: var(--bg); color: var(--ink); }
+body { font-family: var(--f-body); font-size: 14px; line-height: 1.45; }
+.wrap { max-width: 1360px; margin: 0 auto; padding-block: 18px 48px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: flex; flex-direction: column; gap: 14px; }
+h1, h2, h3 { font-family: var(--f-display); font-weight: 600; letter-spacing: .01em; margin: 0; text-wrap: balance; }
+h1 { font-size: 30px; line-height: 1.05; }
+h2 { font-size: 21px; }
+h3 { font-size: 15px; text-transform: uppercase; letter-spacing: .07em; color: var(--ink-2); font-weight: 600; }
+.mono, .num { font-family: var(--f-mono); font-variant-numeric: tabular-nums; }
+.muted { color: var(--muted); }
+.panel { background: var(--panel); border: 1px solid var(--rule); border-radius: var(--r); padding: 14px; min-width: 0; }
+
+/* header */
+.head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 10px 24px; }
+.head p { margin: 4px 0 0; color: var(--ink-2); max-width: 68ch; }
+.clock { font-family: var(--f-display); font-size: 15px; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-2); text-align: right; }
+.clock b { display: block; font-size: 30px; color: var(--ink); letter-spacing: .02em; font-weight: 600; }
+
+/* status strip */
+.strip { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 0; padding: 0; overflow: hidden; }
+.cell { padding: 10px 14px; border-right: 1px solid var(--rule-2); min-width: 0; }
+.cell:last-child { border-right: 0; }
+.cell .lab { font-family: var(--f-display); font-size: 12.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.cell .val { font-family: var(--f-mono); font-size: 19px; font-variant-numeric: tabular-nums; margin-top: 2px; white-space: nowrap; }
+.cell .sub { font-size: 12px; color: var(--ink-2); }
+.chip { display: inline-flex; align-items: center; gap: 6px; font-family: var(--f-display); font-size: 15px; font-weight: 600;
+  letter-spacing: .04em; text-transform: uppercase; padding: 2px 8px; border-radius: 4px; border: 1px solid var(--rule); }
+.chip::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+.chip.heat { border-color: var(--heat); color: var(--heat); background: var(--heat-tint); }
+.chip.heat::before { background: var(--heat); }
+.chip.warn { border-color: var(--cut); color: var(--cut); background: var(--cut-tint); }
+.chip.warn::before { background: var(--cut); }
+.chip.ok::before { background: var(--good); }
+
+/* controls */
+.controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; }
+.btn { font-family: var(--f-display); font-size: 15px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase;
+  padding: 7px 14px; border-radius: 5px; border: 1px solid var(--rule); background: var(--panel-2); color: var(--ink); cursor: pointer; }
+.btn:hover { border-color: var(--ink-2); }
+.btn:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.btn.heat { border-color: var(--heat); color: var(--heat); background: var(--heat-tint); }
+.btn.cut { border-color: var(--cut); color: var(--cut); background: var(--cut-tint); }
+.btn[aria-pressed="true"] { box-shadow: inset 0 0 0 2px currentColor; }
+.ctl { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--ink-2); }
+select, input[type=number] { font: 500 13px var(--f-body); color: var(--ink); background: var(--panel-2); border: 1px solid var(--rule); border-radius: 5px; padding: 5px 8px; }
+input[type=range] { accent-color: var(--accent); width: 120px; }
+.sep { width: 1px; align-self: stretch; background: var(--rule); }
+
+/* main grid */
+.main { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(300px, 1fr); gap: 14px; }
+@media (max-width: 960px) { .main { grid-template-columns: 1fr; } }
+.side { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.maphead { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 6px 14px; margin-bottom: 8px; }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12.5px; color: var(--ink-2); }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 5px; vertical-align: -1px; }
+.legend i.sq { border-radius: 1px; background: transparent; border: 1.5px solid var(--ink-2); }
+.legend i.cut { border-radius: 2px; background: var(--cut-tint); border: 1px solid var(--cut); }
+#map { width: 100%; display: block; cursor: crosshair; border-radius: 4px; }
+.hint { font-size: 12.5px; color: var(--muted); margin-top: 6px; }
+
+/* inspector */
+.kv { display: grid; grid-template-columns: auto 1fr; gap: 3px 14px; font-size: 13px; }
+.kv dt { color: var(--muted); }
+.kv dd { margin: 0; font-family: var(--f-mono); font-variant-numeric: tabular-nums; }
+.ages { display: grid; grid-template-columns: 74px 1fr; gap: 4px 8px; align-items: center; font-size: 12px; margin-top: 10px; }
+.agebar { display: flex; gap: 2px; min-width: 0; }
+.agebar span { flex: 1; height: 16px; border-radius: 2px; background: var(--rule-2); position: relative; }
+.agebar span em { position: absolute; inset: 0; font-style: normal; font-family: var(--f-mono); font-size: 10px; display: grid; place-items: center; color: var(--ink); }
+.rules { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-direction: column; gap: 3px; font-size: 12.5px; }
+.rules li { font-family: var(--f-mono); font-size: 11.5px; padding: 3px 6px; background: var(--panel-2); border-radius: 3px; overflow-wrap: anywhere; }
+.rules li b { color: var(--accent); font-weight: 500; }
+.feed { list-style: none; margin: 8px 0 0; padding: 0; max-height: 168px; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
+.feed li { display: grid; grid-template-columns: 52px 1fr; gap: 8px; }
+.feed li span:first-child { font-family: var(--f-mono); font-size: 11.5px; color: var(--muted); padding-top: 1px; }
+.feed li.heat span:last-child { color: var(--heat); }
+.feed li.cut span:last-child { color: var(--cut); }
+.feed li.bad span:last-child { color: var(--bad); }
+
+/* charts */
+.charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; }
+.chart h3 { margin-bottom: 2px; }
+.chart .cap { font-size: 12.5px; color: var(--muted); margin-bottom: 6px; }
+.chart canvas { width: 100%; height: 170px; display: block; }
+.tip { position: fixed; pointer-events: none; z-index: 10; background: var(--panel); border: 1px solid var(--rule); border-radius: 5px;
+  padding: 6px 9px; font-size: 12px; box-shadow: 0 4px 14px rgba(0,0,0,.12); min-width: 120px; }
+.tip .t { font-family: var(--f-display); font-size: 13px; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); margin-bottom: 3px; }
+.tip .r { display: flex; justify-content: space-between; gap: 12px; font-family: var(--f-mono); font-variant-numeric: tabular-nums; }
+.tip .r i { display: inline-block; width: 8px; height: 2px; vertical-align: 3px; margin-right: 5px; }
+
+/* monte carlo */
+.mc-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px 20px; align-items: baseline; }
+.mc-head p { margin: 4px 0 0; color: var(--ink-2); max-width: 78ch; }
+.tablewrap { overflow-x: auto; margin-top: 10px; }
+table { border-collapse: collapse; width: 100%; font-size: 13px; }
+th { font-family: var(--f-display); font-weight: 600; font-size: 13px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); text-align: right; padding: 6px 10px; border-bottom: 1px solid var(--rule); white-space: nowrap; }
+th:first-child, td:first-child { text-align: left; }
+td { padding: 6px 10px; border-bottom: 1px solid var(--rule-2); text-align: right; font-family: var(--f-mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+td:first-child { font-family: var(--f-body); white-space: normal; min-width: 210px; }
+td small { color: var(--muted); font-size: 11px; display: block; }
+.effects { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 10px; margin-top: 10px; }
+.effect { border: 1px solid var(--rule); border-radius: var(--r); padding: 10px 12px; background: var(--panel-2); min-width: 0; }
+.effect .n { font-family: var(--f-display); font-size: 15px; font-weight: 600; }
+.effect .big { font-family: var(--f-mono); font-size: 20px; margin-top: 4px; font-variant-numeric: tabular-nums; }
+.effect .big.good { color: var(--good); } .effect .big.bad { color: var(--bad); }
+.effect .d { font-size: 12.5px; color: var(--ink-2); margin-top: 2px; }
+.mccharts { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 14px; margin-top: 12px; }
+.mccharts canvas { width: 100%; height: 210px; display: block; }
+.foot { font-size: 12.5px; color: var(--muted); max-width: 90ch; }
+@media (max-width: 600px) { .clock { text-align: left; } }
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+</style>
+
+<div class="wrap">
+  <header class="head">
+    <div>
+      <h1>Dairy Twin Control Room</h1>
+      <p>A stochastic digital twin of one dairy brand's city network: one plant, 240 kiranas run as actors, 4 supermarkets behind a brand warehouse, and 6 quick-commerce dark stores filled straight from the plant. Every day is a fresh random draw. Pick a weekly policy, including one the twin learned by itself, then trigger a heat wave or a power cut and watch it spread.</p>
+    </div>
+    <div class="clock"><span id="clockSub">Week 1 · Thursday</span><b id="clockMain">1 Jan</b></div>
+  </header>
+
+  <section class="panel strip" aria-label="Today's state">
+    <div class="cell"><div class="lab">Weather</div><div class="val"><span id="chipWeather" class="chip ok">Normal</span></div><div class="sub" id="weatherSub">&nbsp;</div></div>
+    <div class="cell"><div class="lab">Milk at plant</div><div class="val" id="milkVal">0</div><div class="sub" id="milkSub">litres today</div></div>
+    <div class="cell"><div class="lab">Fill rate, 7 days</div><div class="val" id="fillVal">–</div><div class="sub" id="fillSub">sales ÷ demand</div></div>
+    <div class="cell"><div class="lab">Wasted, 7 days</div><div class="val" id="wasteVal">–</div><div class="sub">units expired or spoiled</div></div>
+    <div class="cell"><div class="lab">Moved to apps</div><div class="val" id="migVal">0</div><div class="sub">kirana households, net</div></div>
+    <div class="cell"><div class="lab">Profit so far</div><div class="val" id="cashVal">₹0</div><div class="sub">crore, this year</div></div>
+  </section>
+
+  <section class="panel controls" aria-label="Simulation controls">
+    <button class="btn primary" id="play" type="button">Run</button>
+    <button class="btn" id="stepBtn" type="button">Step one day</button>
+    <label class="ctl" for="speed">Speed <input id="speed" type="range" min="1" max="40" value="8"><span class="mono" id="speedLab">8 days/s</span></label>
+    <span class="sep" aria-hidden="true"></span>
+    <label class="ctl" for="policy">Weekly policy
+      <select id="policy"><option value="Habit">Habit: last week's orders + 5%</option><option value="Heat-aware">Heat-aware: reads the weather</option><option value="Learned">Learned: Q-learning, trained on the twin</option></select></label>
+    <span class="ctl" id="decisionText"></span>
+    <label class="ctl" for="seed">Year <input id="seed" type="number" min="0" max="9999" value="7" style="width:76px"></label>
+    <button class="btn" id="reset" type="button">New year</button>
+  </section>
+
+  <div class="main">
+    <section class="panel" aria-label="City map">
+      <div class="maphead">
+        <h2>City at the end of <span id="mapDay">day 1</span></h2>
+        <div class="legend">
+          <span><i style="background:var(--s1)"></i>In stock</span>
+          <span><i style="background:var(--bad)"></i>Turned away 5%+ of customers</span>
+          <span><i style="background:var(--cut)"></i>Stock spoiled in a power cut</span>
+          <span><i class="sq"></i>Battery fridge</span>
+          <span><i style="border-radius:1px;background:var(--ink)"></i>Dark store</span>
+          <span><i class="cut"></i>Power cut today</span>
+        </div>
+      </div>
+      <canvas id="map" height="520" aria-label="Map of 12 sectors with 240 kirana shops"></canvas>
+      <div class="hint" id="mapHint">Click a shop to inspect it. Use “Cut power” then click a sector to black it out tomorrow.</div>
+    </section>
+
+    <div class="side">
+      <section class="panel" aria-label="Shocks and strategic knobs">
+        <h3>Shocks</h3>
+        <div class="controls" style="margin-top:8px">
+          <button class="btn heat" id="heatBtn" type="button">Start a 3-week heat wave</button>
+          <button class="btn cut" id="cutBtn" type="button" aria-pressed="false">Cut power…</button>
+        </div>
+        <h3 style="margin-top:14px">Strategic knobs</h3>
+        <div style="display:flex;flex-direction:column;gap:9px;margin-top:8px">
+          <label class="ctl" for="batt">Battery brand fridges <input id="batt" type="range" min="0" max="60" step="10" value="0"><span class="mono" id="battLab">0%</span></label>
+          <label class="ctl" for="twice">Kirana deliveries
+            <select id="twice"><option value="auto">As the policy decides</option><option value="2">Twice a day, always</option><option value="1">Once a day, always</option></select></label>
+          <label class="ctl" for="returns"><input id="returns" type="checkbox"> Take back unsold kirana stock</label>
+        </div>
+      </section>
+
+      <section class="panel" aria-label="Shop inspector" id="inspector">
+        <h3 id="inspTitle">Shop inspector</h3>
+        <div id="inspBody" class="muted" style="margin-top:6px">Click any shop on the map.</div>
+      </section>
+
+      <section class="panel" aria-label="Event feed">
+        <h3>What happened</h3>
+        <ul class="feed" id="feed"></ul>
+      </section>
+    </div>
+  </div>
+
+  <section class="charts" aria-label="Live traces">
+    <div class="panel chart"><h3>Milk: supply vs need</h3><div class="cap">Litres per day reaching the plant, and litres consumer demand would use</div><canvas id="cMilk"></canvas></div>
+    <div class="panel chart"><h3>Fill rate by channel</h3><div class="cap">Sales ÷ demand, 7-day rolling. Orange band: heat wave</div><canvas id="cFill"></canvas></div>
+    <div class="panel chart"><h3>Waste</h3><div class="cap">Units per day: at kiranas (mostly spoiled in power cuts) and brand-side</div><canvas id="cWaste"></canvas></div>
+    <div class="panel chart"><h3>Bullwhip at the kiranas</h3><div class="cap">Pouch milk per day: what shops ordered vs what customers asked for (illustrative; the browser engine overstates bullwhip by about 20%)</div><canvas id="cBull"></canvas></div>
+  </section>
+
+  <section class="panel" aria-label="Monte Carlo results">
+    <div class="mc-head">
+      <div>
+        <h2>What <span id="mcN">100</span> simulated years say</h2>
+        <p>The browser runs one year at a time. The verdicts below come from the Python twin, which ran every experiment over the same <span id="mcN2">100</span> random years (common random numbers), so each difference is paired year by year and comes from the decision, not from luck.</p>
+      </div>
+    </div>
+    <div class="effects" id="effects"></div>
+    <div class="mccharts">
+      <div><h3>Weekly fill rate across 100 years</h3><div class="cap muted">Median and 5th–95th percentile band</div><canvas id="mcFill"></canvas></div>
+      <div><h3>Weekly waste: with and without power cuts</h3><div class="cap muted">Units per week, median and 5th–95th percentile band</div><canvas id="mcWaste"></canvas></div>
+    </div>
+    <div class="tablewrap">
+      <table id="mcTable"><thead><tr>
+        <th>Experiment</th><th>Fill</th><th>Fill in heat waves</th><th>Worst week</th><th>Waste</th><th>Lost sales</th><th>Households lost</th><th>Reward</th><th>Goal met</th><th>Pattern goals</th>
+      </tr></thead><tbody></tbody></table>
+    </div>
+    <p class="foot">Median over simulated years, with the 5th–95th percentile range underneath. Reward = annual profit − ₹10 × lost units, in lakh, the score the learned policy was trained on. Goal met = share of weeks the goal predicate holds: rolling 4-week fill at or above 92% (kirana), 95% (modern trade), 92% (quick-commerce) for every product, waste under its cap, and cash above zero. Pattern goals = share of years in which all three behaviour goals hold: back to the kirana target within 2 weeks of every heat wave, no channel below 85% for more than 2 weeks running, and no sector carrying more than 20% of kirana waste. All data is synthetic.</p>
+    <div id="policySection"></div>
+  </section>
+</div>
+<div class="tip" id="tip" hidden></div>
+
+<script>globalThis.DAIRY_POLICY = {"table":[4,15,1,16,13,2,13,19,15,12,20,1,21,17,20,3,21,3,6,16,17,-1,-1,-1,4,15,9,21,4,1,-1,-1,-1,16,9,15,7,6,1,17,9,21,9,15,19,0,19,16,21,21,13,5,21,15,21,13,14,-1,-1,-1,2,4,12,0,3,9,-1,-1,-1,11,22,23],"default_heat":19,"default_normal":16,"actions":[{"weather_forecast":false,"margin":0.0,"kiranas_first":false,"twice_daily":false,"label":"habit forecast +0%, pro-rata, 1 drop/day"},{"weather_forecast":false,"margin":0.0,"kiranas_first":false,"twice_daily":true,"label":"habit forecast +0%, pro-rata, 2 drops/day"},{"weather_forecast":false,"margin":0.0,"kiranas_first":true,"twice_daily":false,"label":"habit forecast +0%, kiranas & staples first, 1 drop/day"},{"weather_forecast":false,"margin":0.0,"kiranas_first":true,"twice_daily":true,"label":"habit forecast +0%, kiranas & staples first, 2 drops/day"},{"weather_forecast":false,"margin":0.08,"kiranas_first":false,"twice_daily":false,"label":"habit forecast +8%, pro-rata, 1 drop/day"},{"weather_forecast":false,"margin":0.08,"kiranas_first":false,"twice_daily":true,"label":"habit forecast +8%, pro-rata, 2 drops/day"},{"weather_forecast":false,"margin":0.08,"kiranas_first":true,"twice_daily":false,"label":"habit forecast +8%, kiranas & staples first, 1 drop/day"},{"weather_forecast":false,"margin":0.08,"kiranas_first":true,"twice_daily":true,"label":"habit forecast +8%, kiranas & staples first, 2 drops/day"},{"weather_forecast":false,"margin":0.16,"kiranas_first":false,"twice_daily":false,"label":"habit forecast +16%, pro-rata, 1 drop/day"},{"weather_forecast":false,"margin":0.16,"kiranas_first":false,"twice_daily":true,"label":"habit forecast +16%, pro-rata, 2 drops/day"},{"weather_forecast":false,"margin":0.16,"kiranas_first":true,"twice_daily":false,"label":"habit forecast +16%, kiranas & staples first, 1 drop/day"},{"weather_forecast":false,"margin":0.16,"kiranas_first":true,"twice_daily":true,"label":"habit forecast +16%, kiranas & staples first, 2 drops/day"},{"weather_forecast":true,"margin":0.0,"kiranas_first":false,"twice_daily":false,"label":"weather forecast +0%, pro-rata, 1 drop/day"},{"weather_forecast":true,"margin":0.0,"kiranas_first":false,"twice_daily":true,"label":"weather forecast +0%, pro-rata, 2 drops/day"},{"weather_forecast":true,"margin":0.0,"kiranas_first":true,"twice_daily":false,"label":"weather forecast +0%, kiranas & staples first, 1 drop/day"},{"weather_forecast":true,"margin":0.0,"kiranas_first":true,"twice_daily":true,"label":"weather forecast +0%, kiranas & staples first, 2 drops/day"},{"weather_forecast":true,"margin":0.08,"kiranas_first":false,"twice_daily":false,"label":"weather forecast +8%, pro-rata, 1 drop/day"},{"weather_forecast":true,"margin":0.08,"kiranas_first":false,"twice_daily":true,"label":"weather forecast +8%, pro-rata, 2 drops/day"},{"weather_forecast":true,"margin":0.08,"kiranas_first":true,"twice_daily":false,"label":"weather forecast +8%, kiranas & staples first, 1 drop/day"},{"weather_forecast":true,"margin":0.08,"kiranas_first":true,"twice_daily":true,"label":"weather forecast +8%, kiranas & staples first, 2 drops/day"},{"weather_forecast":true,"margin":0.16,"kiranas_first":false,"twice_daily":false,"label":"weather forecast +16%, pro-rata, 1 drop/day"},{"weather_forecast":true,"margin":0.16,"kiranas_first":false,"twice_daily":true,"label":"weather forecast +16%, pro-rata, 2 drops/day"},{"weather_forecast":true,"margin":0.16,"kiranas_first":true,"twice_daily":false,"label":"weather forecast +16%, kiranas & staples first, 1 drop/day"},{"weather_forecast":true,"margin":0.16,"kiranas_first":true,"twice_daily":true,"label":"weather forecast +16%, kiranas & staples first, 2 drops/day"}]};
+/* Dairy twin engine, JavaScript port of the Python package (dairytwin/).
+ * Same rules, same parameters (config.json exported from Python), same daily order of
+ * events. Random number generators differ, so the two engines agree in distribution,
+ * not run for run (checked by web/parity_check.js).
+ */
+(function (root) {
+  "use strict";
+  const P = 4, MILK = 0, CURD = 1, PANEER = 2, BUTTER = 3;
+  const KIR = 0, MT = 1, QC = 2;
+  const P_SPILL = 0.30;
+
+  // ------------------------------------------------------------------ random numbers
+  class RNG {
+    constructor(seed) {
+      let s = (seed >>> 0) ^ 0x9e3779b9;
+      this.a = s; this.b = s ^ 0x243f6a88; this.c = s ^ 0xb7e15162; this.d = s ^ 0x7f4a7c15;
+      for (let i = 0; i < 15; i++) this.random();
+      this.spare = null;
+    }
+    random() { // sfc32
+      let a = this.a >>> 0, b = this.b >>> 0, c = this.c >>> 0, d = this.d >>> 0;
+      const t = (a + b + d) >>> 0;
+      d = (d + 1) >>> 0; a = b ^ (b >>> 9); b = (c + (c << 3)) >>> 0;
+      c = (c << 21) | (c >>> 11); c = (c + t) >>> 0;
+      this.a = a; this.b = b; this.c = c; this.d = d;
+      return t / 4294967296;
+    }
+    normal() {
+      if (this.spare !== null) { const s = this.spare; this.spare = null; return s; }
+      let u, v, s;
+      do { u = 2 * this.random() - 1; v = 2 * this.random() - 1; s = u * u + v * v; } while (s >= 1 || s === 0);
+      const m = Math.sqrt(-2 * Math.log(s) / s);
+      this.spare = v * m; return u * m;
+    }
+    uniform(lo, hi) { return lo + (hi - lo) * this.random(); }
+    lognormal(mu, sigma) { return Math.exp(mu + sigma * this.normal()); }
+    poisson(lam) {
+      if (lam <= 0) return 0;
+      if (lam < 30) {
+        const L = Math.exp(-lam); let k = 0, p = 1;
+        do { k++; p *= this.random(); } while (p > L);
+        return k - 1;
+      }
+      // PTRS (Hormann 1993) transformed rejection
+      const slam = Math.sqrt(lam), loglam = Math.log(lam);
+      const b = 0.931 + 2.53 * slam, a = -0.059 + 0.02483 * b, invalpha = 1.1239 + 1.1328 / (b - 3.4);
+      const vr = 0.9277 - 3.6224 / (b - 2);
+      for (;;) {
+        const U = this.random() - 0.5, V = this.random(), us = 0.5 - Math.abs(U);
+        const k = Math.floor((2 * a / us + b) * U + lam + 0.43);
+        if (us >= 0.07 && V <= vr) return k;
+        if (k < 0 || (us < 0.013 && V > us)) continue;
+        if (Math.log(V) + Math.log(invalpha) - Math.log(a / (us * us) + b) <= -lam + k * loglam - lgamma(k + 1)) return k;
+      }
+    }
+    binomial(n, p) {
+      if (n <= 0 || p <= 0) return 0;
+      if (p >= 1) return n;
+      if (n < 40) { let k = 0; for (let i = 0; i < n; i++) if (this.random() < p) k++; return k; }
+      const mean = n * p, sd = Math.sqrt(n * p * (1 - p));
+      if (sd < 3) { // small variance: Poisson-like via inversion on Bernoulli sums is slow; use Poisson approx
+        const k = p < 0.5 ? this.poisson(mean) : n - this.poisson(n * (1 - p));
+        return Math.max(0, Math.min(n, k));
+      }
+      return Math.max(0, Math.min(n, Math.round(mean + sd * this.normal())));
+    }
+    permutation(n) {
+      const a = Array.from({ length: n }, (_, i) => i);
+      for (let i = n - 1; i > 0; i--) { const j = Math.floor(this.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
+      return a;
+    }
+    dirichlet(alpha, n) { // symmetric, via gamma(alpha) with alpha >= 1 (Marsaglia-Tsang)
+      const g = [];
+      for (let i = 0; i < n; i++) g.push(this.gamma(alpha));
+      const s = g.reduce((x, y) => x + y, 0); return g.map(x => x / s);
+    }
+    gamma(k) {
+      const d = k - 1 / 3, c = 1 / Math.sqrt(9 * d);
+      for (;;) {
+        let x, v;
+        do { x = this.normal(); v = 1 + c * x; } while (v <= 0);
+        v = v * v * v; const u = this.random();
+        if (u < 1 - 0.0331 * x * x * x * x) return d * v;
+        if (Math.log(u) < 0.5 * x * x + d * (1 - v + Math.log(v))) return d * v;
+      }
+    }
+  }
+  function lgamma(x) { // Stirling series, x >= 1
+    if (x < 7) { let r = 0; while (x < 7) { r -= Math.log(x); x += 1; } return r + lgamma(x); }
+    const x2 = 1 / (x * x);
+    return (x - 0.5) * Math.log(x) - x + 0.918938533204673 + (1 / 12 - x2 * (1 / 360 - x2 / 1260)) / x;
+  }
+
+  // ------------------------------------------------------------------ age-structured stock
+  // a "slot" is one product's age profile: stock[off .. off + A)
+  function slotTotal(s, off, A) { let t = 0; for (let a = 0; a < A; a++) t += s[off + a]; return t; }
+  function slotTake(s, off, A, qty, into, intoOff) { // oldest first; returns units taken
+    let left = qty;
+    for (let a = A - 1; a >= 0 && left > 0; a--) {
+      const g = Math.min(s[off + a], left);
+      if (g > 0) { s[off + a] -= g; left -= g; if (into) into[intoOff + a] += g; }
+    }
+    return qty - left;
+  }
+  function slotAge(s, off, A, shelf, shift) { // age by shift days; return expired units
+    let expired = 0;
+    if (shift > 0) {
+      for (let a = A - 1; a >= 0; a--) {
+        const v = s[off + a]; if (!v) continue;
+        s[off + a] = 0;
+        const na = a + shift;
+        if (na >= shelf || na >= A) expired += v; else s[off + na] += v;
+      }
+    } else {
+      for (let a = shelf; a < A; a++) { expired += s[off + a]; s[off + a] = 0; }
+    }
+    return expired;
+  }
+
+  // ------------------------------------------------------------------ the twin
+  class Twin {
+    constructor(cfg, scen = {}, policy = "Habit", seed = 0, citySeed = 0) {
+      this.cfg = cfg; this.policyName = policy; this.seed = seed;
+      this.scen = Object.assign({ battery_fridge_share: 0, battery_targeting: "risk", kirana_returns: false,
+        outages_enabled: true, forced_weather: {}, forced_outages: {}, force_twice_daily: null }, scen);
+      const names = ["regimes", "supply", "kirana", "distributor", "mt", "qc", "power", "consumers"];
+      this.rng = {}; names.forEach((n, i) => { this.rng[n] = new RNG(seed * 7919 + i * 104729 + 17); });
+      this.rng.city = new RNG(citySeed * 31337 + 2026); // the fixed city: same in every year
+      const pr = cfg.products;
+      this.A = cfg.max_age;
+      this.shelf = pr.shelf_life; this.vol = pr.fridge_volume; this.pc = pr.per_capita;
+      this.C = cfg.city.households.slice();
+      this.migrated = 0;
+      this.base = [0, 1, 2].map(c => this.pc.map(x => this.C[c] * x));
+      this.buildCity();
+      this.buildKirana();
+      this.buildChannels();
+      this.regime = { weather: 0, supply: 0, festival: 0 };
+      this.cash = cfg.money.opening_cash;
+      this.day = 0; this.lastMult = [1, 1, 1, 1];
+      this.orderHist = [];
+      const tot = [0, 0, 0, 0];
+      for (let p = 0; p < P; p++) tot[p] = this.base[0][p] + this.base[1][p] + this.base[2][p];
+      for (let i = 0; i < 7; i++) this.orderHist.push(tot.slice());
+      this.log = [];
+      this.watch = -1; this.watchLog = [];
+    }
+
+    // ---- city
+    buildCity() {
+      const r = this.rng.city, cfg = this.cfg, [gx, gy] = cfg.city.grid, nLoc = gx * gy;
+      this.nLoc = nLoc; this.gx = gx; this.gy = gy;
+      const w = r.dirichlet(6, nLoc), n = cfg.city.n_kirana;
+      const cum = []; w.reduce((s, x, i) => (cum[i] = s + x), 0);
+      const loc = [];
+      for (let i = 0; i < n; i++) { const u = r.random(); let l = cum.findIndex(c => u <= c); if (l < 0) l = nLoc - 1; loc.push(l); }
+      loc.sort((a, b) => a - b);
+      this.loc = loc;
+      this.pos = loc.map(l => [l % gx + r.uniform(0.08, 0.92), Math.floor(l / gx) + r.uniform(0.30, 0.94)]);
+      this.route = loc.map(l => Math.floor(l * cfg.city.n_routes / nLoc));
+      let fr = []; for (let i = 0; i < nLoc; i++) fr.push(r.lognormal(0, 0.35));
+      const m = fr.reduce((a, b) => a + b, 0) / nLoc; this.feederRisk = fr.map(x => x / m);
+      this.outHours = new Float64Array(nLoc);
+    }
+
+    buildKirana() {
+      const cfg = this.cfg, kp = cfg.kirana, r = this.rng.city, n = cfg.city.n_kirana, A = this.A;
+      this.n = n;
+      let share = []; for (let i = 0; i < n; i++) share.push(r.lognormal(0, kp.size_sigma));
+      const s = share.reduce((a, b) => a + b, 0); this.share = share.map(x => x / s);
+      const volPc = this.pc.reduce((acc, x, p) => acc + x * this.vol[p], 0);
+      this.cap = new Float64Array(n); this.kBase = new Float64Array(n); this.k = new Float64Array(n);
+      for (let i = 0; i < n; i++) {
+        this.cap[i] = this.share[i] * this.C[0] * volPc * kp.fridge_cover_mean * r.lognormal(0, kp.fridge_sigma);
+        this.kBase[i] = r.uniform(kp.k_base_low, kp.k_base_high) + (this.scen.kirana_returns ? kp.returns_k_bonus : 0);
+      }
+      this.battery = new Uint8Array(n);
+      this.applyBatteries(this.scen.battery_fridge_share, this.scen.battery_targeting, r);
+      this.k.set(this.kBase);
+      this.stock = new Int32Array(n * P * A);
+      this.memory = new Float64Array(n * P);
+      this.todayD = new Int32Array(n * P); this.todayS = new Int32Array(n * P); this.todayL = new Int32Array(n * P);
+      this.todaySpoiled = new Int32Array(n * P); this.lastWaste = new Int32Array(n * P);
+      this.lastLate = new Uint8Array(n); this.lastOut = new Float64Array(n);
+      for (let i = 0; i < n; i++) for (let p = 0; p < P; p++) {
+        const e = this.share[i] * this.C[0] * this.pc[p];
+        this.stock[(i * P + p) * A + 1] = Math.round(e);
+        this.memory[i * P + p] = e;
+      }
+      this.shopWaste = new Float64Array(n); this.shopDemand = new Float64Array(n); this.shopLost = new Float64Array(n);
+    }
+
+    applyBatteries(share, targeting, r) {
+      const n = this.n;
+      const had = this.battery ? Array.from(this.battery) : null;
+      this.battery = new Uint8Array(n);
+      const m = Math.round(share * n);
+      if (m > 0) {
+        let order = Array.from({ length: n }, (_, i) => i);
+        if (targeting === "risk") {
+          const tie = order.map(() => r.random());
+          order.sort((a, b) => (this.feederRisk[this.loc[b]] - this.feederRisk[this.loc[a]]) || (tie[a] - tie[b]));
+        } else order = r.permutation(n);
+        for (let j = 0; j < m; j++) this.battery[order[j]] = 1;
+      }
+      for (let i = 0; i < n; i++) {
+        const before = had ? had[i] : 0;
+        if (this.battery[i] && !before) this.cap[i] *= 1.25;
+        if (!this.battery[i] && before) this.cap[i] /= 1.25;
+      }
+    }
+
+    buildChannels() {
+      const cfg = this.cfg, A = this.A;
+      // plant
+      this.plant = new Int32Array(P * A);
+      this.plantCap = [];
+      for (let p = 0; p < P; p++) {
+        const tot = this.base[0][p] + this.base[1][p] + this.base[2][p];
+        this.plant[p * A] = Math.round(tot * 0.5);
+        this.plantCap.push(Math.ceil(tot * cfg.supply.plant_capacity_mult));
+      }
+      // modern trade
+      this.mtDC = new Int32Array(P * A); this.mtShelf = new Int32Array(P * A);
+      this.mtCap = []; this.mtSmooth = [];
+      for (let p = 0; p < P; p++) {
+        this.mtShelf[p * A + 1] = Math.round(this.base[MT][p]);
+        this.mtCap.push(Math.ceil(this.base[MT][p] * cfg.mt.shelf_cover));
+        this.mtSmooth.push(this.base[MT][p]);
+      }
+      // quick-commerce
+      const S = cfg.city.n_dark_stores; this.S = S;
+      this.qcShare = this.rng.city.dirichlet(8, S);
+      this.qcStore = new Int32Array(S * P * A);
+      this.qcCap = new Int32Array(S * P); this.qcSmooth = this.base[QC].slice();
+      for (let s = 0; s < S; s++) for (let p = 0; p < P; p++) {
+        const c = Math.ceil(this.qcShare[s] * this.base[QC][p] * cfg.qc.store_cover);
+        this.qcCap[s * P + p] = c; this.qcStore[(s * P + p) * A + 1] = Math.floor(c / 2);
+      }
+      // dark stores sit in the top-right corner of six sectors
+      const qcSectors = [0, 2, 5, 6, 9, 11], gx0 = this.cfg.city.grid[0];
+      this.qcPos = Array.from({ length: S }, (_, s) => { const l = qcSectors[s % 6]; return [l % gx0 + 0.9, Math.floor(l / gx0) + 0.13]; });
+      // pending orders (C x P) and per-shop orders
+      this.shopOrders = new Int32Array(this.n * P);
+      for (let i = 0; i < this.n; i++) for (let p = 0; p < P; p++) this.shopOrders[i * P + p] = Math.round(this.share[i] * this.base[KIR][p]);
+      const oK = [0, 0, 0, 0]; for (let i = 0; i < this.n; i++) for (let p = 0; p < P; p++) oK[p] += this.shopOrders[i * P + p];
+      this.pending = [oK, this.base[MT].map(Math.round), this.base[QC].map(Math.round)];
+    }
+
+    // ---- regimes
+    weekIn(w, lo, hi) { return w >= lo && w <= hi; }
+    stepRegimes(week) {
+      const p = this.cfg.regimes, r = this.rng.regimes, u = [r.random(), r.random(), r.random()];
+      const [lo, hi] = p.summer_weeks;
+      let ph;
+      if (this.regime.weather === 1) ph = this.weekIn(week, lo, hi + 2) ? p.heat_persist : 0.25;
+      else ph = this.weekIn(week, lo, hi) ? p.heat_onset_summer : p.heat_onset_other;
+      const ps = this.regime.supply === 1 ? p.stress_persist : p.stress_onset;
+      const inWin = p.festival_windows.some(([a, b]) => this.weekIn(week, a, b));
+      const pf = !inWin ? 0 : (this.regime.festival === 1 ? p.festival_persist_in_window : p.festival_onset_in_window);
+      const forced = this.scen.forced_weather[week];
+      this.regime.weather = forced !== undefined ? forced : (u[0] < ph ? 1 : 0);
+      this.regime.supply = u[1] < ps ? 1 : 0;
+      this.regime.festival = u[2] < pf ? 1 : 0;
+    }
+    isFlush(w) { const [a, , , d] = this.cfg.regimes.flush_weeks; return w >= a || w <= d; }
+    isLean(w) { const [lo, hi] = this.cfg.regimes.summer_weeks; return w >= lo && w <= hi; }
+    demandMult() {
+      const pr = this.cfg.products, m = [1, 1, 1, 1];
+      for (let p = 0; p < P; p++) {
+        if (this.regime.weather === 1) m[p] *= pr.heat_mult[p];
+        if (this.regime.festival === 1) m[p] *= pr.festival_mult[p];
+      }
+      return m;
+    }
+    supplyMult(w) {
+      const s = this.cfg.supply; let m = 1;
+      if (this.isFlush(w)) m *= s.flush_mult; else if (this.isLean(w)) m *= s.lean_mult;
+      if (this.regime.weather === 1) m *= s.heat_mult;
+      if (this.regime.supply === 1) m *= s.stressed_mult;
+      return m;
+    }
+
+    // ---- policy (weekly knobs)
+    decide() {
+      const avg = [0, 0, 0, 0], H = this.orderHist.slice(-7);
+      for (const o of H) for (let p = 0; p < P; p++) avg[p] += o[p] / H.length;
+      const heat = this.regime.weather === 1;
+      let d;
+      if (this.policyName === "Learned" && root.DAIRY_POLICY) {
+        const a = this.learnedAction();
+        const now = this.demandMult();
+        const fc = a.weather_forecast ? avg.map((x, p) => x * now[p] / this.lastMult[p]) : avg;
+        d = { plan: fc.map(x => x * (1 + a.margin)), priority: a.kiranas_first ? [KIR, QC, MT] : null,
+              twice: a.twice_daily, milkPriority: a.kiranas_first ? [MILK, CURD, PANEER, BUTTER] : null, action: a };
+      } else if (this.policyName === "Heat-aware") {
+        const now = this.demandMult();
+        d = { plan: avg.map((x, p) => x * now[p] / this.lastMult[p] * 1.08),
+              priority: heat ? [KIR, QC, MT] : null, twice: heat, milkPriority: [MILK, CURD, PANEER, BUTTER] };
+      } else {
+        d = { plan: avg.map(x => x * 1.05), priority: null, twice: false, milkPriority: null };
+      }
+      if (this.scen.force_twice_daily !== null && this.scen.force_twice_daily !== undefined) d.twice = this.scen.force_twice_daily;
+      this.decision = d;
+    }
+
+    // ---- learned policy: same state encoding and action menu as dairytwin/mdp.py
+    learnedState() {
+      const w = Math.floor(this.day / 7), L = this.log.slice(-7);
+      let d = 0, s = 0; for (const r of L) { d += r.demand[0].reduce((x, y) => x + y, 0); s += r.sales[0].reduce((x, y) => x + y, 0); }
+      const fill = L.length ? s / Math.max(d, 1) : 1;
+      const season = this.isFlush(w) ? 0 : (this.isLean(w) ? 1 : 2);
+      const band = fill < 0.92 ? 0 : (fill < 0.96 ? 1 : 2);
+      return ((((this.regime.weather * 2 + this.regime.festival) * 2 + this.regime.supply) * 3 + season) * 3 + band);
+    }
+    learnedAction() {
+      const pol = root.DAIRY_POLICY, s = this.learnedState();
+      let a = pol.table[s];
+      if (a < 0) a = this.regime.weather === 1 ? pol.default_heat : pol.default_normal;
+      this.lastLearnedState = s;
+      return pol.actions[a];
+    }
+
+    // ---- one day
+    step() {
+      const cfg = this.cfg, A = this.A, n = this.n, t = this.day, week = Math.floor(t / 7);
+      const W = this.watch, wl = [];
+      if (t % 7 === 0) { this.lastMult = this.demandMult(); this.stepRegimes(week); this.decide(); }
+      else if (this.scen.force_twice_daily !== null && this.scen.force_twice_daily !== undefined) this.decision.twice = this.scen.force_twice_daily;
+      const dec = this.decision, mult = this.demandMult(), heat = this.regime.weather === 1;
+
+      // 2. milk and production (base-stock: up to plan net of plant stock)
+      const milk = cfg.supply.mean_milk * this.supplyMult(week) * this.rng.supply.lognormal(0, cfg.supply.noise_sigma);
+      const r = cfg.products.milk_per_unit, avail0 = [];
+      for (let p = 0; p < P; p++) avail0.push(slotTotal(this.plant, p * A, A));
+      const want = dec.plan.map((x, p) => Math.min(Math.max(0, Math.ceil(x - avail0[p])), this.plantCap[p]));
+      let need = 0; for (let p = 0; p < P; p++) need += want[p] * r[p];
+      let made = [0, 0, 0, 0];
+      if (need <= milk) made = want.slice();
+      else if (!dec.milkPriority) made = want.map(x => x * milk / need);
+      else { let left = milk; for (const p of dec.milkPriority) { const tk = Math.max(0, Math.min(want[p], left / r[p])); made[p] = tk; left -= tk * r[p]; } }
+      made = made.map(x => Math.max(0, Math.floor(x)));
+      let milkUsed = 0; for (let p = 0; p < P; p++) { this.plant[p * A] += made[p]; milkUsed += made[p] * r[p]; }
+
+      // 3. ship against last night's orders
+      const orders = this.pending, shipped = [[0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]];
+      for (let p = 0; p < P; p++) {
+        const av = slotTotal(this.plant, p * A, A), tot = orders[0][p] + orders[1][p] + orders[2][p];
+        if (tot <= av) { for (let c = 0; c < 3; c++) shipped[c][p] = orders[c][p]; }
+        else if (!dec.priority) { for (let c = 0; c < 3; c++) shipped[c][p] = Math.floor(orders[c][p] * av / Math.max(tot, 1)); }
+        else { let left = av; for (const c of dec.priority) { const g = Math.min(orders[c][p], left); shipped[c][p] = g; left -= g; } }
+      }
+      const prof = [0, 1, 2].map(() => new Int32Array(P * A));
+      // kiranas and modern trade load now; quick-commerce is dropped later straight from the plant
+      for (const c of [KIR, MT]) for (let p = 0; p < P; p++) slotTake(this.plant, p * A, A, shipped[c][p], prof[c], p * A);
+      const qcLeft = shipped[QC].slice(); shipped[QC] = [0, 0, 0, 0];
+
+      // 4. kirana channel: ration, routes, morning, late vans, power cut, noon drop, afternoon
+      this.todayD.fill(0); this.todayS.fill(0); this.todayL.fill(0); this.todaySpoiled.fill(0);
+      const rd = this.rng.distributor, rk = this.rng.kirana, kp = cfg.kirana;
+      const alloc = new Int32Array(n * P);
+      for (let p = 0; p < P; p++) {
+        let tot = 0; for (let i = 0; i < n; i++) tot += this.shopOrders[i * P + p];
+        if (!tot) continue;
+        if (shipped[KIR][p] >= tot) { for (let i = 0; i < n; i++) alloc[i * P + p] = this.shopOrders[i * P + p]; continue; }
+        let given = 0; const frac = [];
+        for (let i = 0; i < n; i++) { const e = this.shopOrders[i * P + p] * shipped[KIR][p] / tot; const b = Math.floor(e); alloc[i * P + p] = b; given += b; frac.push([e - b, i]); }
+        let rem = shipped[KIR][p] - given;
+        frac.sort((x, y) => y[0] - x[0] + (rd.random() - 0.5) * 1e-9);
+        for (let j = 0; j < rem; j++) alloc[frac[j][1] * P + p] += 1;
+      }
+      // split the shipment's age profile across shops, random service order
+      const shopProf = new Int32Array(n * P * A), perm = rd.permutation(n);
+      for (let p = 0; p < P; p++) {
+        const q = prof[KIR].slice(p * A, p * A + A);
+        for (const i of perm) slotTake(q, 0, A, alloc[i * P + p], shopProf, (i * P + p) * A);
+      }
+      const twice = !!dec.twice;
+      const drop1 = new Int32Array(n * P * A), drop2 = twice ? new Int32Array(n * P * A) : null;
+      for (let j = 0; j < shopProf.length; j++) {
+        if (twice) { drop1[j] = Math.floor(shopProf[j] * 0.55); drop2[j] = shopProf[j] - drop1[j]; } else drop1[j] = shopProf[j];
+      }
+      const pLate = heat ? kp.p_late_heat : kp.p_late_normal, lateRoute = [];
+      for (let rt = 0; rt < cfg.city.n_routes; rt++) lateRoute.push(rd.random() < pLate);
+      const late = new Uint8Array(n); for (let i = 0; i < n; i++) late[i] = lateRoute[this.route[i]] ? 1 : 0;
+      this.lastLate = late;
+      const refused = new Int32Array(P * A);
+      const deliver = (prf, which, dropNo) => {
+        for (let i = 0; i < n; i++) {
+          if (which === "ontime" && late[i]) continue;
+          if (which === "late" && !late[i]) continue;
+          let inVol = 0;
+          for (let p = 0; p < P; p++) inVol += slotTotal(prf, (i * P + p) * A, A) * this.vol[p];
+          if (inVol <= 0) continue;
+          const free = Math.max(0, this.cap[i] - this.shopVolume(i));
+          const fr = inVol > free ? free / inVol : 1;
+          let got = 0;
+          for (let p = 0; p < P; p++) for (let a = 0; a < A; a++) {
+            const j = (i * P + p) * A + a, v = prf[j]; if (!v) continue;
+            const acc = Math.floor(v * fr); this.stock[j] += acc; refused[p * A + a] += v - acc; got += acc;
+          }
+          if (i === W) wl.push(dropNo === 2 ? `R1 noon drop: ${got} units in` : `R1 delivery${late[i] ? " (after 6 am)" : ""}: ${got} units in`);
+        }
+      };
+      // R2: van missing at 6 am -> shopkeeper gets more cautious
+      for (let i = 0; i < n; i++) if (late[i] && rk.random() < kp.p_k_late) {
+        this.k[i] += kp.k_late_step;
+        if (i === W) wl.push(`R2 van late && caution up: k ${(this.k[i] - kp.k_late_step).toFixed(2)} → ${this.k[i].toFixed(2)}`);
+      }
+      deliver(drop1, "ontime", 1);
+      const meanK = (i, p) => this.share[i] * this.C[KIR] * this.pc[p] * mult[p];
+      const ms = cfg.products.morning_share;
+      const spill = [0, 0, 0, 0];
+      const customers = (part) => {
+        for (let i = 0; i < n; i++) {
+          let lostI = 0;
+          for (let p = 0; p < P; p++) {
+            const d = rk.poisson(meanK(i, p) * part(p)), off = (i * P + p) * A;
+            const sold = slotTake(this.stock, off, A, Math.min(d, slotTotal(this.stock, off, A)), null, 0);
+            const lost = d - sold;
+            this.todayD[i * P + p] += d; this.todayS[i * P + p] += sold; this.todayL[i * P + p] += lost;
+            if (lost > 0) { spill[p] += rk.binomial(lost, P_SPILL); lostI += lost; }
+          }
+          if (i === W && lostI > 0) wl.push(`R4 shelf empty: ${lostI} customers turned away (some try the app)`);
+        }
+      };
+      customers(p => ms[p]);
+      deliver(drop1, "late", 1);
+      // power grid: afternoon cuts while the fridge holds the morning stock
+      const pw = cfg.power, rp = this.rng.power, hours = this.outHours;
+      for (let l = 0; l < this.nLoc; l++) {
+        const pr = Math.min((heat ? pw.p_outage_heat : pw.p_outage_normal) * this.feederRisk[l], 0.95);
+        const hit = rp.random() < pr;
+        const [lo, hi] = heat ? pw.hours_heat : pw.hours_normal;
+        hours[l] = hit ? rp.uniform(lo, hi) : 0;
+      }
+      const fo = this.scen.forced_outages[t];
+      if (fo) for (const l in fo) hours[+l] = Math.max(hours[+l], fo[l]);
+      if (!this.scen.outages_enabled) hours.fill(0);
+      const per4 = cfg.products.outage_age_per_4h;
+      let shopHours = 0;
+      for (let i = 0; i < n; i++) {
+        const h = hours[this.loc[i]], un = this.battery[i] ? Math.max(0, h - pw.battery_hours) : h;
+        this.lastOut[i] = un; shopHours += un;
+        let spoiledI = 0;
+        for (let p = 0; p < P; p++) {
+          const ef = un / 4 * per4[p], whole = Math.floor(ef);
+          const extra = whole + (rk.random() < ef - whole ? 1 : 0);
+          if (extra > 0) { const e = slotAge(this.stock, (i * P + p) * A, A, this.shelf[p], extra); this.todaySpoiled[i * P + p] += e; spoiledI += e; }
+        }
+        if (i === W && h > 0) wl.push(this.battery[i] && un === 0 ? `R10 power cut ${h.toFixed(1)} h: battery fridge rode it out`
+          : `R10 power cut ${h.toFixed(1)} h${this.battery[i] ? ` (battery covered ${pw.battery_hours} h)` : ""}: ${spoiledI} units turned sour`);
+      }
+      if (twice) deliver(drop2, "all", 2);
+      customers(p => 1 - ms[p]);
+      for (let a = 0; a < A; a++) for (let p = 0; p < P; p++) this.plant[p * A + a] += refused[p * A + a];
+
+      // 5. modern trade
+      const rm = this.rng.mt, dM = [0, 0, 0, 0], sM = [0, 0, 0, 0];
+      for (let p = 0; p < P; p++) {
+        for (let a = 0; a < A; a++) this.mtDC[p * A + a] += prof[MT][p * A + a];
+        const moving = new Int32Array(A); let mv = 0;
+        for (let a = 0; a < A; a++) { moving[a] = rm.binomial(this.mtDC[p * A + a], cfg.mt.dc_release_p); mv += moving[a]; }
+        const room = Math.max(0, this.mtCap[p] - slotTotal(this.mtShelf, p * A, A));
+        let go = Math.min(room, mv);
+        for (let a = A - 1; a >= 0 && go > 0; a--) { const g = Math.min(moving[a], go); this.mtDC[p * A + a] -= g; this.mtShelf[p * A + a] += g; go -= g; }
+        const d = rm.poisson(this.C[MT] * this.pc[p] * mult[p]);
+        const s = slotTake(this.mtShelf, p * A, A, Math.min(d, slotTotal(this.mtShelf, p * A, A)), null, 0);
+        dM[p] = d; sM[p] = s;
+      }
+
+      // 6. quick-commerce
+      const rq = this.rng.qc, dQ = [0, 0, 0, 0], sQ = [0, 0, 0, 0], S = this.S;
+      const drop = () => {
+        for (let p = 0; p < P; p++) {
+          const av = Math.min(qcLeft[p], slotTotal(this.plant, p * A, A)); let tot = 0; const room = [];
+          for (let s = 0; s < S; s++) { const rr = Math.max(0, this.qcCap[s * P + p] - slotTotal(this.qcStore, (s * P + p) * A, A)); room.push(rr); tot += rr; }
+          for (let s = 0; s < S; s++) {
+            const g = tot > av ? Math.floor(room[s] * av / Math.max(tot, 1)) : room[s];
+            const got = slotTake(this.plant, p * A, A, g, this.qcStore, (s * P + p) * A);
+            qcLeft[p] -= got; shipped[QC][p] += got;
+          }
+        }
+      };
+      const serveQ = (part, extra) => {
+        for (let p = 0; p < P; p++) {
+          const ex = extra ? this.multinomial(rq, extra[p], this.qcShare) : null;
+          for (let s = 0; s < S; s++) {
+            let d = rq.poisson(this.qcShare[s] * this.C[QC] * this.pc[p] * mult[p] * part(p));
+            if (ex) d += ex[s];
+            const off = (s * P + p) * A;
+            dQ[p] += d; sQ[p] += slotTake(this.qcStore, off, A, Math.min(d, slotTotal(this.qcStore, off, A)), null, 0);
+          }
+        }
+      };
+      drop(); serveQ(p => ms[p], null); drop(); serveQ(p => 1 - ms[p], spill);
+
+      // 8. evening close
+      const wK = [0, 0, 0, 0], wKret = [0, 0, 0, 0], wP = [0, 0, 0, 0], wM = [0, 0, 0, 0], wQ = [0, 0, 0, 0];
+      for (let i = 0; i < n; i++) {
+        let exI = 0, heldI = 0;
+        for (let p = 0; p < P; p++) {
+          const off = (i * P + p) * A;
+          const e = slotAge(this.stock, off, A, this.shelf[p], 1) + this.todaySpoiled[i * P + p];
+          this.lastWaste[i * P + p] = e; wK[p] += e; if (this.scen.kirana_returns) wKret[p] += e;
+          exI += e; heldI += this.todayS[i * P + p] + e;
+          this.shopWaste[i] += e; this.shopDemand[i] += this.todayD[i * P + p]; this.shopLost[i] += this.todayL[i * P + p];
+        }
+        if (exI > kp.heavy_waste_share * Math.max(heldI, 1) && rk.random() < kp.p_k_waste) {
+          this.k[i] -= kp.k_waste_step;
+          if (i === W) wl.push(`R6 heavy waste && caution down: k → ${this.k[i].toFixed(2)}`);
+        }
+        this.k[i] = this.kBase[i] + (this.k[i] - this.kBase[i]) * (1 - kp.k_decay);
+        this.k[i] = Math.min(kp.k_max, Math.max(kp.k_min, this.k[i]));
+        if (i === W) { let sold = 0; for (let p = 0; p < P; p++) sold += this.todayS[i * P + p]; wl.push(`R3 sold ${sold} units today, oldest first`); if (exI) wl.push(`R5 close: ${exI} units expired${this.scen.kirana_returns ? " (returned to the brand)" : ""}`); }
+      }
+      for (let p = 0; p < P; p++) {
+        wP[p] = slotAge(this.plant, p * A, A, this.shelf[p], 1);
+        wM[p] = slotAge(this.mtDC, p * A, A, this.shelf[p], 1) + slotAge(this.mtShelf, p * A, A, this.shelf[p], 1);
+        wQ[p] = 0;
+        for (let s = 0; s < S; s++) wQ[p] += slotAge(this.qcStore, (s * P + p) * A, A, this.shelf[p], 1);
+      }
+
+      // 9. tomorrow's orders
+      const oK = [0, 0, 0, 0];
+      for (let i = 0; i < n; i++) {
+        let need = 0; const want = [0, 0, 0, 0];
+        for (let p = 0; p < P; p++) {
+          const j = i * P + p, seen = this.todayS[j] + kp.lost_weight * this.todayL[j];
+          this.memory[j] = kp.memory * this.memory[j] + (1 - kp.memory) * seen;
+          const f = 0.5 * seen + 0.5 * this.memory[j], cov = kp.cover_days[p];
+          const target = Math.ceil(this.k[i] * f * cov + kp.buffer_sd * Math.sqrt(f * cov));
+          want[p] = Math.max(0, target - slotTotal(this.stock, j * A, A));
+          need += want[p] * this.vol[p];
+        }
+        let free = Math.max(0, this.cap[i] - this.shopVolume(i));
+        if (twice) for (let p = 0; p < P; p++) free += this.todayS[i * P + p] * ms[p] * this.vol[p];
+        const sc = need > free ? free / need : 1;
+        let tot = 0;
+        for (let p = 0; p < P; p++) { const q = Math.floor(want[p] * sc); this.shopOrders[i * P + p] = q; oK[p] += q; tot += q; }
+        if (i === W) wl.push(`R7 order for tomorrow: ${tot} units (k = ${this.k[i].toFixed(2)}${sc < 1 ? ", cut to fit the fridge" : ""})`);
+      }
+      const oM = [0, 0, 0, 0], oQ = [0, 0, 0, 0];
+      for (let p = 0; p < P; p++) {
+        const seen = sM[p] + 0.8 * (dM[p] - sM[p]);
+        this.mtSmooth[p] = cfg.mt.smoothing * seen + (1 - cfg.mt.smoothing) * this.mtSmooth[p];
+        const pipe = slotTotal(this.mtDC, p * A, A) + slotTotal(this.mtShelf, p * A, A);
+        oM[p] = Math.max(0, Math.ceil(this.mtSmooth[p] * (1 + cfg.mt.order_cover) - pipe));
+        this.qcSmooth[p] = cfg.qc.smoothing * dQ[p] + (1 - cfg.qc.smoothing) * this.qcSmooth[p];
+        let pq = 0; for (let s = 0; s < S; s++) pq += slotTotal(this.qcStore, (s * P + p) * A, A);
+        oQ[p] = Math.max(0, Math.ceil(this.qcSmooth[p] * (1 + cfg.qc.order_cover) - pq));
+      }
+      this.pending = [oK, oM, oQ];
+      this.orderHist.push([0, 1, 2, 3].map(p => oK[p] + oM[p] + oQ[p]));
+      if (this.orderHist.length > 14) this.orderHist.shift();
+
+      // 10. customers drift between channels
+      const cp = cfg.consumers, rc = this.rng.consumers;
+      let dKt = 0, sKt = 0, lKt = 0, lQt = 0;
+      for (let j = 0; j < n * P; j++) { dKt += this.todayD[j]; sKt += this.todayS[j]; lKt += this.todayL[j]; }
+      for (let p = 0; p < P; p++) lQt += dQ[p] - sQ[p];
+      const kToQ = Math.min(rc.binomial(Math.floor(lKt / cp.units_per_visit), cp.p_migrate_k_to_q), this.C[KIR]);
+      const qToK = Math.min(rc.binomial(Math.floor(lQt / cp.units_per_visit), cp.p_migrate_q_to_k), this.C[QC]);
+      const fillK = sKt / Math.max(dKt, 1);
+      let back = fillK >= cp.winback_fill ? rc.binomial(this.migrated, cp.p_winback) : 0;
+      back = Math.min(back, this.C[QC] - qToK);
+      this.C[KIR] += qToK + back - kToQ; this.C[QC] += kToQ - qToK - back;
+      this.migrated = Math.max(0, Math.min(this.migrated + kToQ - back, this.C[QC]));
+
+      // 11. cash
+      const mo = cfg.money, price = cfg.products.retail_price;
+      let revenue = 0, cost = milkUsed * cfg.supply.milk_cost;
+      let refusedP = [0, 0, 0, 0]; for (let p = 0; p < P; p++) for (let a = 0; a < A; a++) refusedP[p] += refused[p * A + a];
+      for (let p = 0; p < P; p++) {
+        const wp = mo.wholesale_share * price[p];
+        revenue += wp * (shipped[KIR][p] - refusedP[p]) - wp * wKret[p] + wp * (sM[p] + sQ[p]);
+        cost += made[p] * cfg.products.processing_cost[p] + slotTotal(this.plant, p * A, A) * mo.holding_cost;
+      }
+      let nBatt = 0; for (let i = 0; i < n; i++) nBatt += this.battery[i];
+      cost += cfg.city.n_routes * (twice ? 2 : 1) * mo.trip_cost + mo.mt_trip_cost + this.S * 2 * mo.qc_trip_cost
+        + nBatt * (mo.fridge_cost_per_day + mo.battery_cost_per_day);
+      this.cash += revenue - cost;
+
+      const dKp = [0, 0, 0, 0], sKp = [0, 0, 0, 0];
+      for (let i = 0; i < n; i++) for (let p = 0; p < P; p++) { dKp[p] += this.todayD[i * P + p]; sKp[p] += this.todayS[i * P + p]; }
+      let rNeed = 0; for (let p = 0; p < P; p++) rNeed += (dKp[p] + dM[p] + dQ[p]) * r[p];
+      let outLoc = 0; for (let l = 0; l < this.nLoc; l++) if (hours[l] > 0) outLoc++;
+      this.log.push({
+        day: t, week, weather: this.regime.weather, supply: this.regime.supply, festival: this.regime.festival,
+        milk, milkUsed, milkNeed: rNeed, made, demand: [dKp, dM, dQ], sales: [sKp, sM, sQ],
+        wasteK: wK, wasteP: wP, wasteM: wM, wasteQ: wQ, outLoc, shopHours, late: late.reduce((a, b) => a + b, 0),
+        customers: this.C.slice(), migrated: this.migrated, cash: this.cash, twice, kOrders: oK, spill,
+      });
+      if (W >= 0) this.watchLog = wl;
+      this.day += 1;
+    }
+
+    multinomial(r, n, probs) {
+      const out = new Array(probs.length).fill(0); let left = n, rest = 1;
+      for (let s = 0; s < probs.length - 1 && left > 0; s++) {
+        const g = r.binomial(left, Math.min(1, probs[s] / rest)); out[s] = g; left -= g; rest -= probs[s];
+      }
+      out[probs.length - 1] += left; return out;
+    }
+    shopVolume(i) {
+      let v = 0; const A = this.A;
+      for (let p = 0; p < P; p++) v += slotTotal(this.stock, (i * P + p) * A, A) * this.vol[p];
+      return v;
+    }
+    shopStockByAge(i) {
+      const A = this.A, out = [];
+      for (let p = 0; p < P; p++) out.push(Array.from(this.stock.slice((i * P + p) * A, (i * P + p) * A + Math.min(A, this.shelf[p]))));
+      return out;
+    }
+    unitsInSystem() {
+      const A = this.A; let t = [0, 0, 0, 0];
+      for (let p = 0; p < P; p++) {
+        t[p] += slotTotal(this.plant, p * A, A) + slotTotal(this.mtDC, p * A, A) + slotTotal(this.mtShelf, p * A, A);
+        for (let i = 0; i < this.n; i++) t[p] += slotTotal(this.stock, (i * P + p) * A, A);
+        for (let s = 0; s < this.S; s++) t[p] += slotTotal(this.qcStore, (s * P + p) * A, A);
+      }
+      return t;
+    }
+  }
+
+  const api = { Twin, RNG, P, KIR, MT, QC };
+  if (typeof module !== "undefined" && module.exports) module.exports = api; else root.DairyEngine = api;
+})(typeof globalThis !== "undefined" ? globalThis : this);
+</script>
+<script>
+const CFG = {"products":{"shelf_life":[3,5,7,60],"milk_per_unit":[0.5,0.42,1.1,0.6],"retail_price":[30.0,35.0,90.0,58.0],"processing_cost":[3.0,5.0,12.0,6.0],"fridge_volume":[1.0,0.8,0.6,0.25],"per_capita":[0.75,0.12,0.035,0.02],"heat_mult":[0.95,1.6,0.85,0.9],"festival_mult":[1.08,1.1,2.2,1.7],"morning_share":[0.6,0.35,0.3,0.3],"outage_age_per_4h":[2.0,1.5,1.2,0.1]},"supply":{"mean_milk":50000.0,"flush_mult":1.15,"lean_mult":0.86,"heat_mult":0.88,"stressed_mult":0.9,"noise_sigma":0.05,"plant_capacity_mult":2.0,"milk_cost":40.0},"regimes":{"heat_onset_summer":0.28,"heat_onset_other":0.015,"heat_persist":0.7,"summer_weeks":[13,25],"stress_onset":0.04,"stress_persist":0.7,"festival_windows":[[42,44],[47,49],[2,3]],"festival_onset_in_window":0.55,"festival_persist_in_window":0.65,"flush_weeks":[44,52,0,8]},"city":{"n_kirana":240,"grid":[4,3],"n_routes":6,"n_dark_stores":6,"households":[60000,15000,12000]},"kirana":{"size_sigma":0.4,"fridge_cover_mean":1.3,"fridge_sigma":0.25,"k_base_low":1.05,"k_base_high":1.35,"k_late_step":0.15,"p_k_late":0.6,"k_waste_step":0.05,"p_k_waste":0.5,"heavy_waste_share":0.1,"k_decay":0.1,"k_min":0.9,"k_max":2.2,"lost_weight":0.5,"buffer_sd":1.0,"memory":0.8,"cover_days":[1.0,1.0,1.3,3.0],"p_late_normal":0.06,"p_late_heat":0.1,"returns_k_bonus":0.15},"power":{"p_outage_normal":0.04,"p_outage_heat":0.35,"hours_normal":[1.0,3.0],"hours_heat":[2.0,8.0],"battery_hours":6.0},"mt":{"shelf_cover":1.8,"dc_release_p":0.85,"order_cover":0.3,"smoothing":0.3},"qc":{"store_cover":0.9,"smoothing":0.5,"order_cover":0.3},"consumers":{"units_per_visit":1.1,"p_migrate_k_to_q":0.004,"p_migrate_q_to_k":0.004,"p_winback":0.004,"winback_fill":0.97},"money":{"wholesale_share":0.85,"trip_cost":1800.0,"mt_trip_cost":3000.0,"qc_trip_cost":1200.0,"fridge_cost_per_day":9.0,"battery_cost_per_day":14.0,"holding_cost":0.05,"opening_cash":5000000.0},"targets":{"fill_rate":[0.92,0.95,0.92],"waste_cap":[0.06,0.08,0.1,0.03],"window_weeks":4,"delta":0.1},"days":364,"max_age":64};
+const MC = {"n_years":100,"experiments":[{"key":"habit","label":"Habit","policy":"Habit","fill_pct":{"mean":94.63480766154399,"p5":93.34719203269312,"p50":94.57325968456317,"p95":96.01029355154395},"fill_heat_pct":{"mean":83.28757673336328,"p5":79.47743860715435,"p50":83.66397366279733,"p95":86.25504644041041},"worst_week_fill_pct":{"mean":78.79150510061005,"p5":72.37875502090495,"p50":80.09225734236585,"p95":83.3109931892177},"lost_units":{"mean":1621112.15,"p5":1194660.45,"p50":1642467.5,"p95":2012245.65},"waste_units":{"mean":241346.53,"p5":102071.65,"p50":241347.5,"p95":399772.64999999997},"waste_pct":{"mean":0.8400304247322365,"p5":0.35478517091811207,"p50":0.8379967343846597,"p95":1.3873226712260653},"kirana_customers_lost":{"mean":2982.55,"p5":2359.3,"p50":2951.5,"p95":3616.85},"profit_crore":{"mean":11.4672770564,"p5":11.305053836500004,"p50":11.472426954999996,"p95":11.610256825999999},"predicate_weeks_pct":{"mean":48.51020408163266,"p5":32.55102040816327,"p50":46.93877551020408,"p95":63.367346938775505},"bullwhip":{"mean":1.170897340835605,"p5":0.7695970648887919,"p50":1.056217007205923,"p95":1.9528074933136694},"reward_lam10_lakh":{"mean":984.6164906400002,"p5":939.277767699999,"p50":986.7717650000004,"p95":1024.7885015750007},"behaviour_pct":{"recovery":91.0,"no_collapse":23.0,"fair_waste":59.0,"all":14.000000000000002},"unvisited_weeks_mean":0.0},{"key":"heat","label":"Heat-aware","policy":"Heat-aware","fill_pct":{"mean":95.77467272644746,"p5":94.82165282642647,"p50":95.83860136761851,"p95":96.55276897566176},"fill_heat_pct":{"mean":89.94633412659195,"p5":84.8746204829691,"p50":90.34344811220353,"p95":93.10769974108057},"worst_week_fill_pct":{"mean":84.66481055726685,"p5":75.08852496397532,"p50":86.73717312672773,"p95":90.15327656519277},"lost_units":{"mean":1271744.61,"p5":1031826.85,"p50":1251582.0,"p95":1557613.45},"waste_units":{"mean":163844.49,"p5":82972.85,"p50":161056.5,"p95":257165.1},"waste_pct":{"mean":0.5669764599824824,"p5":0.2878846010497601,"p50":0.5584335353081661,"p95":0.8865281390737745},"kirana_customers_lost":{"mean":2045.6,"p5":1804.1,"p50":2045.5,"p95":2275.35},"profit_crore":{"mean":11.300136985550001,"p5":10.884120633999999,"p50":11.332624017499993,"p95":11.547115887749994},"predicate_weeks_pct":{"mean":45.040816326530624,"p5":32.6530612244898,"p50":44.89795918367347,"p95":57.24489795918366},"bullwhip":{"mean":0.5033025837766846,"p5":0.29862479498007516,"p50":0.4651264914969476,"p95":0.8235616895732606},"reward_lam10_lakh":{"mean":1002.839237555,"p5":940.360574225,"p50":1005.7223295000001,"p95":1047.6501813499997},"behaviour_pct":{"recovery":99.0,"no_collapse":50.0,"fair_waste":68.0,"all":31.0},"unvisited_weeks_mean":0.0},{"key":"learned","label":"Learned (Q-learning, \u03bb = \u20b910)","policy":"Learned","fill_pct":{"mean":96.64951963976077,"p5":95.60536834285472,"p50":96.70417104417962,"p95":97.61114996146357},"fill_heat_pct":{"mean":88.47569259692122,"p5":84.12008447964396,"p50":88.90357808272775,"p95":91.6619232867263},"worst_week_fill_pct":{"mean":83.08980803381915,"p5":75.32345361236037,"p50":84.55748570644914,"p95":88.58526949237736},"lost_units":{"mean":1005898.68,"p5":710307.15,"p50":989293.5,"p95":1323733.15},"waste_units":{"mean":80926.56,"p5":37793.7,"p50":76908.0,"p95":142157.19999999998},"waste_pct":{"mean":0.2790431869312686,"p5":0.12948708830944747,"p50":0.26551141607467,"p95":0.49030331375807923},"kirana_customers_lost":{"mean":1261.04,"p5":978.7,"p50":1219.5,"p95":1626.1499999999999},"profit_crore":{"mean":11.297428664700004,"p5":11.132286010000005,"p50":11.307618617499996,"p95":11.461722155000002},"predicate_weeks_pct":{"mean":12.163265306122447,"p5":3.9795918367346945,"p50":11.224489795918366,"p95":22.55102040816326},"bullwhip":{"mean":3.2769409823381306,"p5":2.07854041945405,"p50":3.0355778208911346,"p95":5.637118325930508},"reward_lam10_lakh":{"mean":1029.15299847,"p5":976.3612662499999,"p50":1035.0252010000004,"p95":1061.2564312749994},"behaviour_pct":{"recovery":95.0,"no_collapse":60.0,"fair_waste":44.0,"all":23.0},"unvisited_weeks_mean":0.0},{"key":"habit_batt_risk","label":"Habit + 30% battery fridges (riskiest feeders)","policy":"Habit","fill_pct":{"mean":95.23179172416691,"p5":94.11855963116729,"p50":95.22165088993219,"p95":96.4024599128066},"fill_heat_pct":{"mean":85.3456986400121,"p5":80.77930450206397,"p50":85.77303980770168,"p95":88.1378456368658},"worst_week_fill_pct":{"mean":80.85510917559604,"p5":73.93544791251838,"p50":82.08908893441742,"p95":85.10909361867066},"lost_units":{"mean":1438106.73,"p5":1076513.25,"p50":1437400.5,"p95":1775586.8499999999},"waste_units":{"mean":155180.72,"p5":75601.6,"p50":150192.0,"p95":261764.94999999998},"waste_pct":{"mean":0.539336730474598,"p5":0.26316570218154767,"p50":0.5227797351598742,"p95":0.9041863378388422},"kirana_customers_lost":{"mean":2538.87,"p5":2074.35,"p50":2504.0,"p95":3054.1},"profit_crore":{"mean":11.430321626850002,"p5":11.26932323975,"p50":11.434805782500003,"p95":11.574462852249995},"predicate_weeks_pct":{"mean":48.53061224489796,"p5":30.612244897959183,"p50":46.93877551020408,"p95":63.367346938775505},"bullwhip":{"mean":1.5560590421520846,"p5":1.0220426572816206,"p50":1.423544608084165,"p95":2.5896458005955982},"reward_lam10_lakh":{"mean":999.2214896849999,"p5":952.4364332499999,"p50":1001.0489707500001,"p95":1037.0599115750001},"behaviour_pct":{"recovery":94.0,"no_collapse":43.0,"fair_waste":9.0,"all":3.0},"unvisited_weeks_mean":0.0},{"key":"habit_batt_rand","label":"Habit + 30% battery fridges (random shops)","policy":"Habit","fill_pct":{"mean":95.23927540079713,"p5":94.18674743165295,"p50":95.18177192923035,"p95":96.47907443666082},"fill_heat_pct":{"mean":84.91518384978617,"p5":80.98930886787174,"p50":85.30490450729704,"p95":87.63319931526982},"worst_week_fill_pct":{"mean":80.32286618349563,"p5":73.97752357199572,"p50":81.83789653744381,"p95":84.29538074089267},"lost_units":{"mean":1435853.31,"p5":1054117.7,"p50":1453979.0,"p95":1761150.2499999998},"waste_units":{"mean":177204.0,"p5":84379.4,"p50":176936.5,"p95":286066.05},"waste_pct":{"mean":0.6153267827877648,"p5":0.29257375940947355,"p50":0.6152022643752262,"p95":0.9903290208586897},"kirana_customers_lost":{"mean":2517.29,"p5":2055.1,"p50":2495.0,"p95":3045.0499999999997},"profit_crore":{"mean":11.43625307065,"p5":11.280577423999999,"p50":11.440469210000003,"p95":11.574855208250003},"predicate_weeks_pct":{"mean":48.69387755102041,"p5":32.55102040816327,"p50":48.97959183673469,"p95":63.367346938775505},"bullwhip":{"mean":1.5416938680141496,"p5":1.0356895359059222,"p50":1.4205696614809915,"p95":2.3604958337480078},"reward_lam10_lakh":{"mean":1000.0399760650001,"p5":958.16525775,"p50":1001.1572102499999,"p95":1039.1744764749992},"behaviour_pct":{"recovery":93.0,"no_collapse":38.0,"fair_waste":83.0,"all":28.999999999999996},"unvisited_weeks_mean":0.0},{"key":"habit_returns","label":"Habit + kirana returns","policy":"Habit","fill_pct":{"mean":94.77839186116887,"p5":93.51987388099494,"p50":94.67723617799447,"p95":96.14978344671272},"fill_heat_pct":{"mean":83.29077282459997,"p5":79.16863298679935,"p50":83.70221030925629,"p95":86.52435323925684},"worst_week_fill_pct":{"mean":78.88730720676892,"p5":72.61455296224676,"p50":80.01799592565392,"p95":82.40280943647072},"lost_units":{"mean":1576670.08,"p5":1149712.05,"p50":1605735.5,"p95":1972099.8},"waste_units":{"mean":268350.54,"p5":112212.6,"p50":262540.0,"p95":439019.24999999994},"waste_pct":{"mean":0.9321368584212196,"p5":0.3890973335581163,"p50":0.9119488012287946,"p95":1.5287602669160316},"kirana_customers_lost":{"mean":2784.67,"p5":2226.0,"p50":2782.5,"p95":3370.6499999999996},"profit_crore":{"mean":10.82996779405,"p5":10.362778033500003,"p50":10.840607365000007,"p95":11.250305231499995},"predicate_weeks_pct":{"mean":48.75510204081632,"p5":32.55102040816327,"p50":48.97959183673469,"p95":63.367346938775505},"bullwhip":{"mean":1.724982113928664,"p5":1.1080675521412082,"p50":1.643305509329237,"p95":2.570929855415101},"reward_lam10_lakh":{"mean":925.3297714050002,"p5":849.1978652499998,"p50":925.377256,"p95":1011.5402902499998},"behaviour_pct":{"recovery":93.0,"no_collapse":23.0,"fair_waste":68.0,"all":18.0},"unvisited_weeks_mean":0.0},{"key":"heat_batt","label":"Heat-aware + 30% battery fridges","policy":"Heat-aware","fill_pct":{"mean":96.26577574776606,"p5":95.32230560342903,"p50":96.33893179136192,"p95":97.00910474121477},"fill_heat_pct":{"mean":90.95576250095604,"p5":86.46576184166177,"p50":91.38678190780305,"p95":93.86346754541661},"worst_week_fill_pct":{"mean":85.86204126861723,"p5":76.53707549371062,"p50":87.90181893782888,"p95":91.30555428663104},"lost_units":{"mean":1122459.31,"p5":893855.0,"p50":1099921.0,"p95":1401484.9999999998},"waste_units":{"mean":106573.31,"p5":53300.55,"p50":105693.0,"p95":157562.69999999998},"waste_pct":{"mean":0.3681249214509693,"p5":0.18380503537007015,"p50":0.36541669886110506,"p95":0.548098665980207},"kirana_customers_lost":{"mean":1742.91,"p5":1535.95,"p50":1746.0,"p95":1968.1},"profit_crore":{"mean":11.282164081349999,"p5":10.888857553500003,"p50":11.310315397499998,"p95":11.535132090999989},"predicate_weeks_pct":{"mean":44.55102040816327,"p5":32.6530612244898,"p50":44.89795918367347,"p95":57.14285714285714},"bullwhip":{"mean":0.5147891337964644,"p5":0.30845098836777235,"p50":0.48731867757343805,"p95":0.7986596633589389},"reward_lam10_lakh":{"mean":1015.970477135,"p5":950.4357793,"p50":1019.9836809999991,"p95":1060.7449345750003},"behaviour_pct":{"recovery":99.0,"no_collapse":64.0,"fair_waste":8.0,"all":6.0},"unvisited_weeks_mean":0.0},{"key":"habit_nocut","label":"Habit, no power cuts","policy":"Habit","fill_pct":{"mean":95.31579372886155,"p5":94.49877956309135,"p50":95.34665438533894,"p95":96.23339380591369},"fill_heat_pct":{"mean":88.20570436980707,"p5":84.28537561703105,"p50":88.55804365602137,"p95":90.99976572386247},"worst_week_fill_pct":{"mean":83.33373701585613,"p5":75.85411742821039,"p50":85.01740155671038,"p95":87.9717739283001},"lost_units":{"mean":1412430.73,"p5":1125806.7,"p50":1402237.0,"p95":1657532.5},"waste_units":{"mean":13759.46,"p5":13460.65,"p50":13750.0,"p95":14033.2},"waste_pct":{"mean":0.048011124725426735,"p5":0.047224396248054724,"p50":0.04796808701629055,"p95":0.04882293607626614},"kirana_customers_lost":{"mean":2566.06,"p5":2210.55,"p50":2569.0,"p95":2926.65},"profit_crore":{"mean":11.458130584200001,"p5":11.299314285249991,"p50":11.465922785000004,"p95":11.590108216499996},"predicate_weeks_pct":{"mean":48.91836734693877,"p5":34.48979591836735,"p50":48.97959183673469,"p95":63.367346938775505},"bullwhip":{"mean":1.456257441565249,"p5":0.9232085303035789,"p50":1.3985590276743443,"p95":2.1197066959712525},"reward_lam10_lakh":{"mean":1004.56998542,"p5":964.3609362000012,"p50":1006.8138629999999,"p95":1034.4299143500002},"behaviour_pct":{"recovery":93.0,"no_collapse":89.0,"fair_waste":5.0,"all":5.0},"unvisited_weeks_mean":0.0},{"key":"habit_severe","label":"Habit, severe summer","policy":"Habit","fill_pct":{"mean":93.6801057426992,"p5":92.3373167222546,"p50":93.75135274145086,"p95":94.48261040422824},"fill_heat_pct":{"mean":83.01200856952556,"p5":78.93816890147077,"p50":83.43223644104353,"p95":85.39207121833756},"worst_week_fill_pct":{"mean":77.80984794051146,"p5":72.03656337570294,"p50":79.18194211459985,"p95":81.85266764013767},"lost_units":{"mean":1916669.58,"p5":1657344.6,"p50":1894227.5,"p95":2322356.1999999997},"waste_units":{"mean":302638.59,"p5":198942.2,"p50":288653.0,"p95":441251.75},"waste_pct":{"mean":1.0570606303507972,"p5":0.6993313014172912,"p50":1.0091367583292787,"p95":1.5297988330263241},"kirana_customers_lost":{"mean":3350.8,"p5":2899.7,"p50":3344.5,"p95":3788.7},"profit_crore":{"mean":11.47128573925,"p5":11.286053926249998,"p50":11.483859877500002,"p95":11.614831991000003},"predicate_weeks_pct":{"mean":44.53061224489796,"p5":32.55102040816327,"p50":44.89795918367347,"p95":59.183673469387756},"bullwhip":{"mean":0.8931170236407255,"p5":0.6323279599566547,"p50":0.8679358775184134,"p95":1.2290944696121298},"reward_lam10_lakh":{"mean":955.4616159249996,"p5":894.0458134499997,"p50":959.0435490000002,"p95":987.8137620999993},"behaviour_pct":{"recovery":94.0,"no_collapse":0.0,"fair_waste":62.0,"all":0.0},"unvisited_weeks_mean":0.0},{"key":"heat_severe","label":"Heat-aware, severe summer","policy":"Heat-aware","fill_pct":{"mean":95.15682999720067,"p5":93.85154546700304,"p50":95.29387335262707,"p95":95.82843620718303},"fill_heat_pct":{"mean":89.07103641578287,"p5":83.248806134648,"p50":89.74767784297634,"p95":91.58430176970089},"worst_week_fill_pct":{"mean":82.8735260962896,"p5":74.62422771841608,"p50":85.40558485494107,"p95":87.92944798877393},"lost_units":{"mean":1461410.56,"p5":1249875.4,"p50":1421512.0,"p95":1857789.4},"waste_units":{"mean":223239.78,"p5":171180.85,"p50":220643.5,"p95":285280.39999999997},"waste_pct":{"mean":0.7738778539675463,"p5":0.5925940097684037,"p50":0.7624517011305847,"p95":0.9907294229959095},"kirana_customers_lost":{"mean":1970.42,"p5":1736.85,"p50":1971.5,"p95":2202.0499999999997},"profit_crore":{"mean":11.107918905749996,"p5":10.718526996249999,"p50":11.134885847500007,"p95":11.345322988999998},"predicate_weeks_pct":{"mean":43.83673469387755,"p5":32.6530612244898,"p50":44.89795918367347,"p95":55.10204081632652},"bullwhip":{"mean":0.40681006600263747,"p5":0.2770008150315022,"p50":0.3839020565393343,"p95":0.6050887397918121},"reward_lam10_lakh":{"mean":964.6508345750002,"p5":889.0500843,"p50":970.6692020000002,"p95":1002.5046351750003},"behaviour_pct":{"recovery":97.0,"no_collapse":15.0,"fair_waste":73.0,"all":7.000000000000001},"unvisited_weeks_mean":0.0},{"key":"learned_severe","label":"Learned, severe summer","policy":"Learned","fill_pct":{"mean":95.85902635759808,"p5":94.50819038871222,"p50":96.01984322724044,"p95":96.56445700010973},"fill_heat_pct":{"mean":87.40052378104362,"p5":82.40290185904128,"p50":87.86167223062627,"p95":90.31952741356898},"worst_week_fill_pct":{"mean":81.43249789162975,"p5":74.22449695010565,"p50":83.23802469070391,"p95":85.5679779606546},"lost_units":{"mean":1247027.65,"p5":1031817.8,"p50":1197488.5,"p95":1657748.1},"waste_units":{"mean":95289.16,"p5":55310.75,"p50":88386.5,"p95":159374.05},"waste_pct":{"mean":0.3298669270713035,"p5":0.19447341337247878,"p50":0.30648905948205407,"p95":0.5477685679501625},"kirana_customers_lost":{"mean":1434.3,"p5":1204.0,"p50":1405.0,"p95":1774.8999999999999},"profit_crore":{"mean":11.274658676499998,"p5":11.084697577000018,"p50":11.3045266775,"p95":11.447795136500002},"predicate_weeks_pct":{"mean":11.979591836734693,"p5":6.020408163265306,"p50":11.224489795918366,"p95":22.448979591836736},"bullwhip":{"mean":2.876103287345314,"p5":1.9647040946632983,"p50":2.71215070211412,"p95":4.205966339020024},"reward_lam10_lakh":{"mean":1002.7631026500001,"p5":950.0095582,"p50":1009.8252817500005,"p95":1032.8733979750004},"behaviour_pct":{"recovery":97.0,"no_collapse":6.0,"fair_waste":46.0,"all":2.0},"unvisited_weeks_mean":0.0},{"key":"heat_batt_severe","label":"Heat-aware + batteries, severe summer","policy":"Heat-aware","fill_pct":{"mean":95.67688969304292,"p5":94.37965735863335,"p50":95.79359501204274,"p95":96.26617950143753},"fill_heat_pct":{"mean":90.1694089610706,"p5":84.58396856118033,"p50":90.8961454655967,"p95":92.68066950070056},"worst_week_fill_pct":{"mean":84.30523471369804,"p5":75.53038687390165,"p50":87.12994776227688,"p95":89.3058867260053},"lost_units":{"mean":1302851.88,"p5":1126551.0,"p50":1270065.0,"p95":1694706.4},"waste_units":{"mean":143205.01,"p5":102821.35,"p50":142055.0,"p95":190500.45},"waste_pct":{"mean":0.49569553830909496,"p5":0.35527784920600064,"p50":0.48988259413300395,"p95":0.6554596272386308},"kirana_customers_lost":{"mean":1722.51,"p5":1450.85,"p50":1723.5,"p95":1960.35},"profit_crore":{"mean":11.099925935399996,"p5":10.721671736250002,"p50":11.133239425000003,"p95":11.334129871999993},"predicate_weeks_pct":{"mean":44.00000000000001,"p5":32.6530612244898,"p50":44.89795918367347,"p95":55.10204081632652},"bullwhip":{"mean":0.4185844478318463,"p5":0.29542127278410923,"p50":0.4047036117984284,"p95":0.6044679819102179},"reward_lam10_lakh":{"mean":979.7074055399999,"p5":902.8986784000004,"p50":985.7899455000002,"p95":1014.5657173749995},"behaviour_pct":{"recovery":100.0,"no_collapse":37.0,"fair_waste":12.0,"all":3.0},"unvisited_weeks_mean":0.0},{"key":"habit_severe_nocut","label":"Habit, severe summer, no power cuts","policy":"Habit","fill_pct":{"mean":94.64182346552472,"p5":93.36644854874103,"p50":94.7368717609376,"p95":95.3248093149962},"fill_heat_pct":{"mean":87.6197468231761,"p5":82.41928190517463,"p50":88.12901295304101,"p95":90.08505736020685},"worst_week_fill_pct":{"mean":82.02403158431378,"p5":75.16292602386413,"p50":84.26462627046416,"p95":86.67491650259034},"lost_units":{"mean":1620615.83,"p5":1410589.15,"p50":1594252.0,"p95":2010174.95},"waste_units":{"mean":13580.16,"p5":13281.0,"p50":13595.5,"p95":13791.35},"waste_pct":{"mean":0.047567315651882484,"p5":0.04675144153480841,"p50":0.04755000605467308,"p95":0.048331681935568256},"kirana_customers_lost":{"mean":2768.83,"p5":2449.1,"p50":2779.5,"p95":3050.15},"profit_crore":{"mean":11.466053422249999,"p5":11.295920990999994,"p50":11.472921415000005,"p95":11.619763998749997},"predicate_weeks_pct":{"mean":44.693877551020414,"p5":32.55102040816327,"p50":44.89795918367347,"p95":57.14285714285714},"bullwhip":{"mean":1.3285901866564152,"p5":0.9458979779159267,"p50":1.2585886954109593,"p95":1.8601048175933308},"reward_lam10_lakh":{"mean":984.5437592249999,"p5":934.2480752000005,"p50":989.4950634999996,"p95":1009.347063325},"behaviour_pct":{"recovery":89.0,"no_collapse":71.0,"fair_waste":6.0,"all":4.0},"unvisited_weeks_mean":0.0},{"key":"learned_lam0","label":"Learned, \u03bb = \u20b90 (profit only)","policy":"Learned:results/q_table_lam0.npz","fill_pct":{"mean":96.38787781265017,"p5":95.4940241825396,"p50":96.46392774585769,"p95":97.43353170174767},"fill_heat_pct":{"mean":88.18656118441984,"p5":83.05269625674815,"p50":88.68955496460713,"p95":91.31044138116161},"worst_week_fill_pct":{"mean":81.53278747391616,"p5":71.94270926795745,"p50":83.46892069681357,"p95":87.5145511155236},"lost_units":{"mean":1084659.57,"p5":765519.25,"p50":1060635.5,"p95":1355944.7999999998},"waste_units":{"mean":118415.19,"p5":43492.700000000004,"p50":118265.0,"p95":195983.15},"waste_pct":{"mean":0.40882309348770596,"p5":0.15014147772265157,"p50":0.40965144862572694,"p95":0.6743798364585933},"kirana_customers_lost":{"mean":1278.47,"p5":989.0,"p50":1223.5,"p95":1738.55},"profit_crore":{"mean":11.125285112949996,"p5":10.944980053249992,"p50":11.137371332500003,"p95":11.274800488750001},"predicate_weeks_pct":{"mean":13.367346938775508,"p5":4.081632653061225,"p50":12.244897959183673,"p95":28.77551020408162},"bullwhip":{"mean":1.727582104838351,"p5":1.0325746876305537,"p50":1.5823848506924731,"p95":3.1483605016237255},"reward_lam10_lakh":{"mean":1004.0625542949998,"p5":962.6023624250001,"p50":1007.0573647500007,"p95":1041.2916874749994},"behaviour_pct":{"recovery":96.0,"no_collapse":68.0,"fair_waste":48.0,"all":31.0},"unvisited_weeks_mean":0.0},{"key":"learned_lam30","label":"Learned, \u03bb = \u20b930","policy":"Learned:results/q_table_lam30.npz","fill_pct":{"mean":96.75663449910107,"p5":95.57505972853123,"p50":96.76066861814013,"p95":97.80734142580103},"fill_heat_pct":{"mean":89.17653056460448,"p5":84.10408063007742,"p50":89.46449461878314,"p95":92.59585856351606},"worst_week_fill_pct":{"mean":83.07494735621118,"p5":75.2031532220799,"p50":84.43427357832685,"p95":88.9621484431031},"lost_units":{"mean":973625.85,"p5":652174.45,"p50":971700.5,"p95":1325181.75},"waste_units":{"mean":78906.44,"p5":34502.9,"p50":73672.5,"p95":139226.34999999998},"waste_pct":{"mean":0.2719325326059947,"p5":0.11878187320379147,"p50":0.2537376783546219,"p95":0.4764868556152843},"kirana_customers_lost":{"mean":1369.35,"p5":1008.1,"p50":1363.5,"p95":1765.7999999999997},"profit_crore":{"mean":11.335247249750001,"p5":11.151842644499997,"p50":11.339156987500001,"p95":11.507427940249993},"predicate_weeks_pct":{"mean":39.36734693877551,"p5":24.489795918367346,"p50":38.775510204081634,"p95":57.34693877551019},"bullwhip":{"mean":2.7398765492923367,"p5":1.7815738693746477,"p50":2.664027107006133,"p95":3.8703367500062362},"reward_lam10_lakh":{"mean":1036.162139975,"p5":980.7341841749995,"p50":1039.0529962500002,"p95":1068.6954791500007},"behaviour_pct":{"recovery":94.0,"no_collapse":60.0,"fair_waste":47.0,"all":28.000000000000004},"unvisited_weeks_mean":0.0}],"paired_effects":[{"comparison":"Heat-aware vs Habit","lost":{"mean":-349367.54,"ci95":[-373725.58771824016,-325009.4922817598],"share_years_better":1.0},"waste_units":{"mean":-77502.04,"ci95":[-87100.66926467308,-67903.4107353269],"share_years_better":0.98},"fill":{"mean":1.1398650649034712,"ci95":[1.0612002183919194,1.218529911415023],"share_years_better":1.0},"profit":{"mean":-0.16714007084999988,"ci95":[-0.19527346615437746,-0.1390066755456223],"share_years_better":0.11},"migrated_net":{"mean":-936.95,"ci95":[-1022.1292582622144,-851.7707417377857],"share_years_better":1.0},"predicate_share":{"mean":-3.4693877551020402,"ci95":[-4.598613824209336,-2.3401616859947447],"share_years_better":0.14},"reward10":{"mean":18.222746915000013,"ci95":[15.66326007309639,20.782233756903633],"share_years_better":0.91}},{"comparison":"Learned vs Habit","lost":{"mean":-615213.47,"ci95":[-636409.1779418555,-594017.7620581444],"share_years_better":1.0},"waste_units":{"mean":-160419.97,"ci95":[-172285.5390700709,-148554.4009299291],"share_years_better":1.0},"fill":{"mean":2.0147119782167753,"ci95":[1.9463604760064814,2.0830634804270693],"share_years_better":1.0},"profit":{"mean":-0.16984839170000057,"ci95":[-0.1783584066529931,-0.16133837674700804],"share_years_better":0.0},"migrated_net":{"mean":-1721.51,"ci95":[-1786.9265595060956,-1656.0934404939044],"share_years_better":1.0},"predicate_share":{"mean":-36.346938775510196,"ci95":[-38.17572763343467,-34.518149917585724],"share_years_better":0.0},"reward10":{"mean":44.53650782999995,"ci95":[41.94550850981563,47.127507150184265],"share_years_better":1.0}},{"comparison":"Learned vs Heat-aware","lost":{"mean":-265845.93,"ci95":[-280292.0018486012,-251399.8581513988],"share_years_better":1.0},"waste_units":{"mean":-82917.93,"ci95":[-88836.02699466691,-76999.83300533307],"share_years_better":1.0},"fill":{"mean":0.8748469133133041,"ci95":[0.8268374369643008,0.9228563896623074],"share_years_better":1.0},"profit":{"mean":-0.0027083208500006954,"ci95":[-0.02912509665566771,0.02370845495566632],"share_years_better":0.52},"migrated_net":{"mean":-784.56,"ci95":[-835.9816561549663,-733.1383438450335],"share_years_better":1.0},"predicate_share":{"mean":-32.877551020408156,"ci95":[-34.33913449822469,-31.415967542591627],"share_years_better":0.0},"reward10":{"mean":26.313760914999936,"ci95":[23.7865345214296,28.84098730857027],"share_years_better":0.99}},{"comparison":"Learned vs Heat-aware (severe summer)","lost":{"mean":-214382.91,"ci95":[-227052.25792344194,-201713.56207655807],"share_years_better":1.0},"waste_units":{"mean":-127950.62,"ci95":[-133681.1692328916,-122220.07076710837],"share_years_better":1.0},"fill":{"mean":0.7021963603974154,"ci95":[0.6605618385320962,0.7438308822627346],"share_years_better":1.0},"profit":{"mean":0.16673977075000068,"ci95":[0.14504753689911706,0.1884320046008843],"share_years_better":0.97},"migrated_net":{"mean":-536.12,"ci95":[-585.2349885881051,-487.0050114118949],"share_years_better":0.97},"predicate_share":{"mean":-31.857142857142847,"ci95":[-33.09870589939192,-30.615579814893767],"share_years_better":0.0},"reward10":{"mean":38.11226807500007,"ci95":[35.66402829061236,40.560507859387776],"share_years_better":1.0}},{"comparison":"Battery fridges (risk-targeted) vs none","lost":{"mean":-183005.42,"ci95":[-192544.67369692426,-173466.16630307576],"share_years_better":1.0},"waste_units":{"mean":-86165.81,"ci95":[-93289.42770459941,-79042.19229540059],"share_years_better":1.0},"fill":{"mean":0.5969840626229269,"ci95":[0.5661740920436772,0.6277940332021766],"share_years_better":1.0},"profit":{"mean":-0.03695542954999988,"ci95":[-0.03888955931547167,-0.03502129978452809],"share_years_better":0.0},"migrated_net":{"mean":-443.68,"ci95":[-478.7970037463738,-408.56299625362624],"share_years_better":0.99},"predicate_share":{"mean":0.0204081632653065,"ci95":[-0.2666599136921999,0.30747624022281284],"share_years_better":0.19},"reward10":{"mean":14.604999045000005,"ci95":[13.566413763675168,15.643584326324842],"share_years_better":1.0}},{"comparison":"Battery fridges: risk-targeted vs random","lost":{"mean":2253.42,"ci95":[-5450.564987418293,9957.404987418293],"share_years_better":0.46},"waste_units":{"mean":-22023.28,"ci95":[-24809.84377024715,-19236.71622975285],"share_years_better":0.93},"fill":{"mean":-0.0074836766302324165,"ci95":[-0.032657995138478155,0.017690641878013322],"share_years_better":0.46},"profit":{"mean":-0.0059314437999998795,"ci95":[-0.007728185788174663,-0.004134701811825096],"share_years_better":0.19},"migrated_net":{"mean":21.58,"ci95":[-10.36223838980467,53.52223838980467],"share_years_better":0.49},"predicate_share":{"mean":-0.16326530612244874,"ci95":[-0.4457077557891681,0.11917714354427064],"share_years_better":0.14},"reward10":{"mean":-0.8184863799999949,"ci95":[-1.7168042734875906,0.07983151348760098],"share_years_better":0.44}},{"comparison":"Kirana returns vs none","lost":{"mean":-44442.07,"ci95":[-52133.314739478235,-36750.825260521764],"share_years_better":0.89},"waste_units":{"mean":27004.01,"ci95":[23719.367667035807,30288.65233296419],"share_years_better":0.03},"fill":{"mean":0.143584199624901,"ci95":[0.11850603588451175,0.16866236336529022],"share_years_better":0.89},"profit":{"mean":-0.6373092623499994,"ci95":[-0.687688127967808,-0.5869303967321908],"share_years_better":0.0},"migrated_net":{"mean":-197.88,"ci95":[-232.0124594408965,-163.7475405591035],"share_years_better":0.88},"predicate_share":{"mean":0.2448979591836736,"ci95":[0.015502618729203499,0.4742932996381437],"share_years_better":0.2},"reward10":{"mean":-59.28671923499996,"ci95":[-64.39765667964576,-54.17578179035415],"share_years_better":0.0}},{"comparison":"Heat-aware + batteries vs Habit","lost":{"mean":-498652.84,"ci95":[-524720.5849942637,-472585.09500573634],"share_years_better":1.0},"waste_units":{"mean":-134773.22,"ci95":[-146925.81193303154,-122620.62806696845],"share_years_better":1.0},"fill":{"mean":1.6309680862220879,"ci95":[1.5469327611227646,1.7150034113214112],"share_years_better":1.0},"profit":{"mean":-0.185112975050001,"ci95":[-0.21195944088062452,-0.15826650921937746],"share_years_better":0.08},"migrated_net":{"mean":-1239.64,"ci95":[-1324.1108368414411,-1155.169163158559],"share_years_better":1.0},"predicate_share":{"mean":-3.9591836734693873,"ci95":[-5.188876909421125,-2.72949043751765],"share_years_better":0.14},"reward10":{"mean":31.35398649499991,"ci95":[28.811618044892008,33.89635494510781],"share_years_better":0.99}},{"comparison":"Power cuts vs none (typical years)","lost":{"mean":208681.42,"ci95":[189568.8481096443,227793.9918903557],"share_years_better":0.01},"waste_units":{"mean":227587.07,"ci95":[209843.2571535656,245330.88284643443],"share_years_better":0.0},"fill":{"mean":-0.6809860673175954,"ci95":[-0.7429654455550172,-0.6190066890801735],"share_years_better":0.01},"profit":{"mean":0.009146472200000567,"ci95":[0.006600105744849221,0.011692838655151914],"share_years_better":0.75},"migrated_net":{"mean":416.49,"ci95":[364.86991202541947,468.11008797458055],"share_years_better":0.06},"predicate_share":{"mean":-0.40816326530612274,"ci95":[-0.6866875148352393,-0.1296390157770062],"share_years_better":0.12},"reward10":{"mean":-19.953494779999943,"ci95":[-21.89433270994855,-18.012656850051336],"share_years_better":0.01}},{"comparison":"Power cuts vs none (severe summer)","lost":{"mean":296053.75,"ci95":[280375.8640096008,311731.6359903992],"share_years_better":0.0},"waste_units":{"mean":289058.43,"ci95":[274313.1176056744,303803.7423943256],"share_years_better":0.0},"fill":{"mean":-0.9617177228254999,"ci95":[-1.0122387152957797,-0.9111967303552203],"share_years_better":0.0},"profit":{"mean":0.005232316999999285,"ci95":[0.00261603982623123,0.00784859417376734],"share_years_better":0.65},"migrated_net":{"mean":581.97,"ci95":[529.2349543626889,634.7050456373112],"share_years_better":0.0},"predicate_share":{"mean":-0.16326530612244902,"ci95":[-0.42180823185132,0.09527761960642198],"share_years_better":0.14},"reward10":{"mean":-29.08214330000008,"ci95":[-30.719847639801657,-27.444438960198504],"share_years_better":0.0}},{"comparison":"Heat-aware vs Habit (severe summer)","lost":{"mean":-455259.02,"ci95":[-473320.8064339116,-437197.2335660884],"share_years_better":1.0},"waste_units":{"mean":-79398.81,"ci95":[-88550.89439804196,-70246.72560195804],"share_years_better":0.99},"fill":{"mean":1.4767242545014574,"ci95":[1.4185529197069566,1.5348955892959582],"share_years_better":1.0},"profit":{"mean":-0.36336683349999954,"ci95":[-0.38858366126149624,-0.33815000573850285],"share_years_better":0.0},"migrated_net":{"mean":-1380.38,"ci95":[-1447.4020295284372,-1313.357970471563],"share_years_better":1.0},"predicate_share":{"mean":-0.6938775510204086,"ci95":[-1.4923002384979052,0.10454513645708785],"share_years_better":0.22},"reward10":{"mean":9.189218650000068,"ci95":[6.2841621970119,12.094275102988236],"share_years_better":0.76}},{"comparison":"Heat-aware + batteries vs Habit (severe summer)","lost":{"mean":-613817.7,"ci95":[-633272.0324419378,-594363.3675580621],"share_years_better":1.0},"waste_units":{"mean":-159433.58,"ci95":[-170644.21222013337,-148222.9477798666],"share_years_better":1.0},"fill":{"mean":1.9967839503437192,"ci95":[1.9342176185147428,2.0593502821726957],"share_years_better":1.0},"profit":{"mean":-0.3713598038500007,"ci95":[-0.39558445675325893,-0.3471351509467425],"share_years_better":0.0},"migrated_net":{"mean":-1628.29,"ci95":[-1697.6935563896382,-1558.8864436103618],"share_years_better":1.0},"predicate_share":{"mean":-0.5306122448979597,"ci95":[-1.359621633057446,0.29839714326152667],"share_years_better":0.21},"reward10":{"mean":24.245789614999932,"ci95":[21.504433723659574,26.98714550634029],"share_years_better":0.95}}],"fans":{"habit":{"fill":{"p5":[94.426,95.518,88.266,88.903,94.923,87.863,95.412,95.505,95.464,95.647,95.566,95.6,95.58,80.279,79.993,76.368,79.462,78.532,77.777,78.837,78.9,80.705,78.551,76.758,75.489,75.075,88.21,89.216,91.767,88.17,94.915,96.279,96.135,95.925,96.346,96.402,95.315,95.473,91.021,96.032,95.853,96.095,89.319,90.469,91.107,96.026,96.06,89.727,89.725,90.638,96.21,95.927],"p50":[97.119,96.957,90.323,94.25,96.823,96.748,97.009,97.086,97.209,97.127,97.25,96.968,97.183,96.584,96.235,94.79,89.36,94.654,92.037,92.675,88.488,94.885,95.167,93.659,85.388,95.348,96.743,96.971,97.273,97.217,97.57,97.503,97.398,97.449,97.712,97.604,97.384,97.481,97.239,97.552,97.681,97.643,91.2,94.661,95.583,97.454,97.397,96.276,95.029,95.815,97.284,97.365],"p95":[98.124,98.099,97.901,97.554,98.027,97.779,97.877,98.208,98.228,98.245,98.296,98.226,98.268,97.871,97.802,97.819,98.3,97.823,97.877,97.917,97.737,98.08,98.434,98.319,97.685,98.117,98.474,98.486,98.232,98.498,98.632,98.581,98.481,98.453,98.553,98.655,98.629,98.694,98.269,98.651,98.607,98.572,98.234,98.22,97.889,98.523,98.431,98.306,98.073,98.031,98.51,98.622]},"waste":{"p5":[181.9,266.85,290.1,281.95,279.0,272.9,271.9,273.8,263.85,279.85,273.8,282.75,277.75,282.9,318.8,286.05,290.7,277.5,262.75,263.8,315.45,308.9,253.85,304.8,268.65,255.25,322.15,287.4,273.85,288.65,305.9,288.55,271.9,286.4,273.6,281.95,287.85,278.7,271.65,258.9,276.8,309.95,274.95,299.8,315.5,299.1,289.75,275.95,283.7,315.5,345.55,274.0],"p50":[1157.5,558.5,576.0,625.0,870.0,797.5,648.0,697.0,760.0,703.5,690.5,821.5,795.0,800.5,932.0,1364.0,1426.0,1508.0,1869.5,1179.0,2707.0,1295.0,1500.0,1731.0,12531.5,1288.0,1418.5,829.0,798.0,914.0,814.0,843.0,671.5,755.0,729.5,764.0,812.5,730.5,824.5,752.5,723.5,797.5,601.0,755.5,804.5,948.0,860.5,545.5,748.0,784.5,1151.0,939.5],"p95":[5478.1,1296.65,1883.6,1863.5,2509.65,37842.65,1558.85,1657.0,1890.25,1527.05,2018.7,1742.8,2068.35,36819.65,42686.0,37859.7,37124.9,36284.95,36284.5,33407.55,40849.95,35687.25,35649.3,35670.65,39907.0,36246.9,49603.2,45487.35,42393.5,36090.05,3044.05,2249.95,1612.85,1796.35,1389.4,2196.2,1937.7,2431.2,33945.35,1710.9,2099.85,1719.05,1587.0,2117.45,2733.8,3129.6,2079.95,1869.8,2054.6,2132.2,2161.25,2258.2]}},"heat":{"fill":{"p5":[95.897,95.084,93.184,93.397,95.691,95.649,95.072,95.6,95.746,95.818,95.787,95.578,95.539,89.37,87.085,78.999,85.49,85.391,84.581,86.085,83.275,86.926,86.784,81.095,80.311,79.365,94.471,95.167,95.577,94.615,96.141,95.9,95.944,95.863,95.757,96.141,95.606,95.906,95.278,96.043,95.973,95.922,93.146,93.617,93.891,95.754,95.664,93.849,93.467,94.022,95.583,96.203],"p50":[97.116,96.795,94.935,95.158,96.851,96.957,97.087,97.015,97.048,96.962,96.96,97.1,97.124,96.3,96.171,95.237,93.105,95.448,94.303,93.826,93.58,94.787,95.977,94.656,92.307,95.272,96.941,97.142,97.202,97.196,97.32,97.203,97.264,97.151,97.301,97.389,97.369,97.186,97.194,97.234,97.29,97.064,95.719,95.36,95.506,97.228,97.239,95.992,95.626,95.669,97.107,97.297],"p95":[98.133,98.172,97.613,97.551,97.884,98.18,98.193,98.035,98.271,98.161,97.949,98.227,98.218,98.001,97.76,98.096,97.796,97.766,97.902,97.813,97.916,98.246,97.847,97.849,97.977,97.694,97.976,98.187,98.163,98.429,98.429,98.41,98.452,98.401,98.425,98.42,98.427,98.451,98.458,98.431,98.403,98.27,98.463,97.957,98.062,98.293,98.185,98.411,98.142,97.886,98.04,98.377]},"waste":{"p5":[199.8,283.6,309.5,286.0,272.85,309.65,287.45,261.95,291.3,271.9,279.9,281.4,290.85,278.6,355.1,310.5,351.05,350.8,325.5,439.4,308.1,351.65,284.55,393.0,388.45,374.9,318.75,310.8,291.25,302.35,312.05,297.9,295.4,290.35,276.75,298.65,295.95,287.95,271.9,331.8,287.55,308.7,355.35,324.0,360.95,319.3,280.55,285.95,316.85,337.5,306.9,283.85],"p50":[1387.0,684.0,841.5,707.0,763.0,807.0,737.0,794.0,799.0,758.5,783.0,879.0,955.5,1214.5,1347.0,2030.5,1839.0,1770.5,2048.5,1811.0,2728.5,1692.0,1816.0,1683.5,11400.0,1742.5,1421.5,1008.0,958.5,987.5,855.5,852.0,770.0,896.5,799.5,765.5,828.5,794.0,923.5,868.0,845.5,891.0,965.0,888.5,857.5,837.5,902.5,716.5,825.0,772.5,973.0,970.0],"p95":[4971.85,1947.85,2088.3,1700.6,2166.1,13747.3,2285.75,2146.1,2246.55,2003.75,2390.95,2252.15,2408.5,18178.85,21894.85,20523.95,22370.95,19900.1,22743.5,19754.65,23872.8,20899.85,20824.65,23292.85,21802.95,20631.5,19109.5,19888.15,16317.8,16895.2,2338.9,2255.7,2536.65,2138.25,1715.4,2061.7,2328.85,3243.7,9024.45,2039.5,2311.75,2197.35,1938.3,2628.2,2141.95,2226.4,2001.75,2131.3,1912.4,1833.7,2203.8,2616.25]}},"habit_nocut":{"waste":{"p5":[156.95,241.75,246.8,248.95,244.9,243.9,235.95,240.0,238.9,241.8,245.95,240.95,246.95,232.0,218.85,217.75,201.0,206.85,203.9,203.75,200.85,218.0,209.6,204.95,201.0,201.75,232.85,236.95,244.85,242.9,239.0,231.0,243.9,243.95,240.0,242.9,236.95,234.95,242.95,242.95,242.0,248.0,247.95,247.85,254.0,242.9,240.95,247.95,249.0,251.0,252.95,246.0],"p50":[176.0,266.5,276.0,284.0,269.0,267.5,267.0,267.5,266.0,271.0,268.5,269.0,269.0,263.0,257.5,256.0,252.5,257.0,252.0,252.0,251.0,251.5,255.0,253.5,252.5,254.0,262.0,264.5,268.5,269.5,267.0,265.0,269.0,266.0,268.5,268.0,265.0,265.0,267.5,266.5,270.5,268.0,272.0,280.5,282.0,275.5,272.0,275.0,283.5,286.0,278.0,275.0],"p95":[200.05,289.05,307.05,308.1,290.25,303.1,297.05,293.05,289.25,299.0,301.0,298.05,292.0,295.05,290.05,287.05,285.15,286.25,286.0,300.1,281.0,293.05,291.15,291.1,286.0,291.2,290.15,295.15,295.05,295.05,298.0,298.0,297.2,298.0,298.0,296.05,290.25,293.1,290.25,294.05,294.0,292.0,300.15,310.05,312.1,305.0,303.05,298.1,305.25,311.0,301.15,308.1]}},"heat_share":[0.05,0.01,0.03,0.0,0.02,0.06,0.03,0.01,0.03,0.01,0.03,0.02,0.02,0.25,0.34,0.42,0.47,0.43,0.45,0.45,0.49,0.43,0.43,0.46,0.54,0.41,0.34,0.25,0.13,0.09,0.04,0.01,0.02,0.01,0.0,0.01,0.04,0.04,0.06,0.01,0.01,0.01,0.01,0.01,0.01,0.01,0.02,0.01,0.03,0.01,0.02,0.02],"learned":{"fill":{"p5":[96.883,94.93,92.489,93.284,93.789,93.611,96.72,96.802,96.968,97.652,97.38,97.607,97.744,88.775,85.673,80.705,82.889,83.879,80.139,84.392,83.06,84.734,83.855,80.801,78.415,78.168,93.431,94.95,96.256,95.7,97.132,97.955,97.639,97.882,97.785,97.66,97.186,97.013,97.078,97.728,97.672,97.905,93.723,94.344,94.003,95.494,97.803,96.353,91.111,95.01,96.605,97.452],"p50":[98.787,95.988,95.638,96.484,97.723,98.699,98.734,98.878,98.866,98.886,98.799,98.861,98.766,96.363,96.415,94.938,93.133,94.892,93.448,92.836,91.871,94.745,95.406,93.633,90.866,94.754,97.661,98.61,98.591,98.786,98.73,98.962,98.87,98.852,98.795,98.854,98.861,98.822,98.823,98.768,98.927,98.817,95.313,97.305,98.313,98.699,98.714,98.271,98.029,98.232,98.961,98.832],"p95":[99.614,97.198,99.156,99.342,99.697,99.625,99.643,99.68,99.626,99.532,99.824,99.843,99.887,97.806,98.49,98.642,98.338,98.229,98.197,98.479,98.368,98.368,98.36,98.564,98.217,98.552,99.522,99.788,99.504,99.588,99.639,99.873,99.83,99.851,99.798,99.654,99.835,99.839,99.858,99.868,99.665,99.558,99.657,99.103,99.514,99.879,99.817,99.662,99.506,99.417,99.934,99.69]},"waste":{"p5":[171.0,233.85,267.0,243.95,219.95,246.95,253.75,241.9,248.9,243.0,244.95,243.85,243.8,272.65,241.95,244.95,235.0,238.95,238.85,243.9,242.9,253.9,244.9,257.75,254.85,257.35,254.95,252.85,250.9,243.9,248.85,252.6,242.95,251.9,246.95,253.85,243.0,245.9,249.9,246.85,242.0,246.95,252.0,261.95,259.75,248.95,249.85,254.95,263.95,259.0,252.9,256.85],"p50":[409.5,259.0,611.5,383.0,293.0,295.5,294.5,278.0,279.5,285.5,285.0,278.5,284.0,863.0,416.5,1566.0,1174.0,1423.0,1067.0,1078.5,1561.5,1404.5,1011.0,1034.5,1943.5,1249.0,404.5,334.5,287.0,296.5,284.5,283.5,280.0,282.0,288.0,284.0,288.0,284.5,280.0,286.5,281.0,288.0,312.5,310.5,345.0,309.0,304.5,296.5,347.0,332.0,353.0,317.0],"p95":[3175.95,459.4,2550.55,1742.25,1351.55,14202.7,826.5,590.8,696.7,492.0,431.25,478.1,554.1,8167.65,10521.3,11037.25,11799.55,12937.5,12051.2,7599.15,12943.0,9981.0,11440.4,11708.8,10070.0,11867.75,18201.9,19885.05,17382.55,15099.35,704.95,477.05,530.9,565.8,441.6,414.2,558.15,694.1,10217.2,530.5,427.8,425.0,720.1,726.05,1469.35,1022.9,478.5,540.55,1211.35,898.3,1397.6,739.2]}}},"policy_table":[{"state":{"weather":"Normal","festival":false,"supply":"Normal","season":"Flush","kirana_fill":"< 92%"},"visits":1375,"action":"habit forecast +8%, pro-rata, 1 drop/day","action_fields":{"weather_forecast":false,"margin":0.08,"kiranas_first":false,"twice_daily":false}},{"state":{"weather":"Normal","festival":false,"supply":"Normal","season":"Flush","kirana_fill":"92-96%"},"visits":11176,"action":"weather forecast +0%, kiranas & staples first, 2 drops/day","action_fields":{"weather_forecast":true,"margin":0.0,"kiranas_first":true,"twice_daily":true}},{"state":{"weather":"Normal","festival":false,"supply":"Normal","season":"Flush","kirana_fill":"> 96%"},"visits":22944,"action":"habit forecast +0%, pro-rata, 2 drops/day","action_fields":{"weather_forecast":false,"margin":0.0,"kiranas_first":false,"twice_daily":true}},{"state":{"weather":"Normal","festival":false,"supply":"Normal","season":"Lean","kirana_fill":"< 92%"},"visits":4033,"action":"weather forecast +8%, pro-rata, 1 drop/day","action_fields":{"weather_forecast":true,"margin":0.08,"kiranas_first":false,"twice_daily":false}},{"state":{"weather":"Normal","festival":false,"supply":"Normal","season":"Lean","kirana_fill":"92-96%"},"visits":6769,"action":"weather forecast +0%, pro-rata, 2 drops/day","action_fields":{"weather_forecast":true,"margin":0.0,"kiranas_first":false,"twice_daily":true}},{"state":{"weather":"Normal","festival":false,"supply":"Normal","season":"Lean","kirana_fill":"> 96%"},"visits":7812,"action":"habit forecast +0%, kiranas & staples first, 1 drop/day","action_fields":{"weather_forecast":false,"margin":0.0,"kiranas_first":true,"twice_daily":false}},{"state":{"weather":"Normal","festival":false,"supply":"Normal","season":"Normal","kirana_fill":"< 92%"},"visits":766,"action":"weather forecast +0%, pro-rata, 2 drops/day","action_fields":{"weather_forecast":true,"margin":0.0,"kiranas_first":false,"twice_daily":true}},{"state":{"weather":"Normal","festival":false,"supply":"Normal","season":"Normal","kirana_fill":"92-96%"},"visits":10164,"action":"weather forecast +8%, kiranas & staples first, 2 drops/day","action_fields":{"weather_forecast":true,"margin":0.08,"kiranas_first":true,"twice_daily":true}},{"state":{"weather":"Normal","festival":false,"supply":"Normal","season":"Normal","kirana_fill":"> 96%"},"visits":41569,"action":"weather forecast +0%, kiranas & staples first, 2 drops/day","action_fields":{"weather_forecast":true,"margin":0.0,"kiranas_first":true,"twice_daily":true}},{"state":{"weather":"Normal","festival":false,"supply":"Stressed","season":"Flush","kirana_fill":"< 92%"},"visits":171,"action":"weather forecast +0%, pro-rata, 1 drop/day","action_fields":{"weather_forecast":true,"margin":0.0,"kiranas_first":false,"twice_daily":false}},{"state":{"weather":"Normal","festival":false,"supply":"Stressed","season":"Flush","kirana_fill":"92-96%"},"visits":1422,"action":"weather forecast +16%, pro-rata, 1 drop/day","action_fields":{"weather_forecast":true,"margin":0.16,"kiranas_first":false,"twice_daily":false}},{"state":{"weather":"Normal","festival":false,"supply":"Stressed","season":"Flush","kirana_fill":"> 96%"},"visits":2553,"action":"habit forecast +0%, pro-rata, 2 drops/day","action_fields":{"weather_forecast":false,"margin":0.0,"kiranas_first":false,"twice_daily":true}},{"state":{"weather":"Normal","festival":false,"supply":"Stressed","season":"Lean","kirana_fill":"< 92%"},"visits":1096,"action":"weather forecast +16%, pro-rata, 2 drops/day","action_fields":{"weather_forecast":true,"margin":0.16,"kiranas_first":false,"twice_daily":true}},{"state":{"weather":"Normal","festival":false,"supply":"Stressed","season":"Lean","kirana_fill":"92-96%"},"visits":868,"action":"weather forecast +8%, pro-rata, 2 drops/day","action_fields":{"weather_forecast":true,"margin":0.08,"kiranas_first":false,"twice_daily":true}},{"state":{"weather":"Normal","festival":false,"supply":"Stressed","season":"Lean","kirana_fill":"> 96%"},"visits":574,"action":"weather forecast +16%, pro-rata, 1 drop/day","action_fields":{"weather_forecast":true,"margin":0.16,"kiranas_first":false,"twice_daily":false}},{"state":{"weather":"Normal","festival":false,"supply":"Stressed","season":"Normal","kirana_fill":"< 92%"},"visits":224,"action":"habit forecast +0%, kiranas & staples first, 2 drops/day","action_fields":{"weather_forecast":false,"margin":0.0,"kiranas_first":true,"twice_daily":true}},{"state":{"weather":"Normal","festival":false,"supply":"Stressed","season":"Normal","kirana_fill":"92-96%"},"visits":1496,"action":"weather forecast +16%, pro-rata, 2 drops/day","action_fields":{"weather_forecast":true,"margin":0.16,"kiranas_first":false,"twice_daily":true}},{"state":{"weather":"Normal","festival":false,"supply":"Stressed","season":"Normal","kirana_fill":"> 96%"},"visits":5252,"action":"habit forecast +0%, kiranas & staples first, 2 drops/day","action_fields":{"weather_forecast":false,"margin":0.0,"kiranas_first":true,"twice_daily":true}},{"state":{"weather":"Normal","festival":true,"supply":"Normal","season":"Flush","kirana_fill":"< 92%"},"visits":779,"action":"habit forecast +8%, kiranas & staples first, 1 drop/day","action_fields":{"weather_forecast":false,"margin":0.08,"kiranas_first":true,"twice_daily":false}},{"state":{"weather":"Normal","festival":true,"supply":"Normal","season":"Flush","kirana_fill":"92-96%"},"visits":3452,"action":"weather forecast +8%, pro-rata, 1 drop/day","action_fields":{"weather_forecast":true,"margin":0.08,"kiranas_first":false,"twice_daily":false}},{"state":{"weather":"Normal","festival":true,"supply":"Normal","season":"Flush","kirana_fill":"> 96%"},"visits":5059,"action":"weather forecast +8%, pro-rata, 2 drops/day","action_fields":{"weather_forecast":true,"margin":0.08,"kiranas_first":false,"twice_daily":true}},{"state":{"weather":"Normal","festival":true,"supply":"Normal","season":"Normal","kirana_fill":"< 92%"},"visits":120,"action":"habit forecast +8%, pro-rata, 1 drop/day","action_fields":{"weather_forecast":false,"margin":0.08,"kiranas_first":false,"twice_daily":false}},{"state":{"weather":"Normal","festival":true,"supply":"Normal","season":"Normal","kirana_fill":"92-96%"},"visits":808,"action":"weather forecast +0%, kiranas & staples first, 2 drops/day","action_fields":{"weather_forecast":true,"margin":0.0,"kiranas_first":true,"twice_daily":true}},{"state":{"weather":"Normal","festival":true,"supply":"Normal","season":"Normal","kirana_fill":"> 96%"},"visits":1997,"action":"habit forecast +16%, pro-rata, 2 drops/day","action_fields":{"weather_forecast":false,"margin":0.16,"kiranas_first":false,"twice_daily":true}},{"state":{"weather":"Normal","festival":true,"supply":"Stressed","season":"Flush","kirana_fill":"< 92%"},"visits":110,"action":"weather forecast +16%, pro-rata, 2 drops/day","action_fields":{"weather_forecast":true,"margin":0.16,"kiranas_first":false,"twice_daily":true}},{"state":{"weather":"Normal","festival":true,"supply":"Stressed","season":"Flush","kirana_fill":"92-96%"},"visits":410,"action":"habit forecast +8%, pro-rata, 1 drop/day","action_fields":{"weather_forecast":false,"margin":0.08,"kiranas_first":false,"twice_daily":false}},{"state":{"weather":"Normal","festival":true,"supply":"Stressed","season":"Flush","kirana_fill":"> 96%"},"visits":599,"action":"habit forecast +0%, pro-rata, 2 drops/day","action_fields":{"weather_forecast":false,"margin":0.0,"kiranas_first":false,"twice_daily":true}},{"state":{"weather":"Normal","festival":true,"supply":"Stressed","season":"Normal","kirana_fill":"92-96%"},"visits":131,"action":"habit forecast +16%, pro-rata, 2 drops/day","action_fields":{"weather_forecast":false,"margin":0.16,"kiranas_first":false,"twice_daily":true}},{"state":{"weather":"Normal","festival":true,"supply":"Stressed","season":"Normal","kirana_fill":"> 96%"},"visits":274,"action":"weather forecast +0%, kiranas & staples first, 2 drops/day","action_fields":{"weather_forecast":true,"margin":0.0,"kiranas_first":true,"twice_daily":true}},{"state":{"weather":"Heat wave","festival":false,"supply":"Normal","season":"Flush","kirana_fill":"< 92%"},"visits":102,"action":"habit forecast +8%, kiranas & staples first, 2 drops/day","action_fields":{"weather_forecast":false,"margin":0.08,"kiranas_first":true,"twice_daily":true}},{"state":{"weather":"Heat wave","festival":false,"supply":"Normal","season":"Flush","kirana_fill":"92-96%"},"visits":196,"action":"habit forecast +8%, kiranas & staples first, 1 drop/day","action_fields":{"weather_forecast":false,"margin":0.08,"kiranas_first":true,"twice_daily":false}},{"state":{"weather":"Heat wave","festival":false,"supply":"Normal","season":"Flush","kirana_fill":"> 96%"},"visits":372,"action":"habit forecast +0%, pro-rata, 2 drops/day","action_fields":{"weather_forecast":false,"margin":0.0,"kiranas_first":false,"twice_daily":true}},{"state":{"weather":"Heat wave","festival":false,"supply":"Normal","season":"Lean","kirana_fill":"< 92%"},"visits":8904,"action":"weather forecast +8%, pro-rata, 2 drops/day","action_fields":{"weather_forecast":true,"margin":0.08,"kiranas_first":false,"twice_daily":true}},{"state":{"weather":"Heat wave","festival":false,"supply":"Normal","season":"Lean","kirana_fill":"92-96%"},"visits":3824,"action":"habit forecast +16%, pro-rata, 2 drops/day","action_fields":{"weather_forecast":false,"margin":0.16,"kiranas_first":false,"twice_daily":true}},{"state":{"weather":"Heat wave","festival":false,"supply":"Normal","season":"Lean","kirana_fill":"> 96%"},"visits":3086,"action":"weather forecast +16%, pro-rata, 2 drops/day","action_fields":{"weather_forecast":true,"margin":0.16,"kiranas_first":false,"twice_daily":true}},{"state":{"weather":"Heat wave","festival":false,"supply":"Normal","season":"Normal","kirana_fill":"< 92%"},"visits":988,"action":"habit forecast +16%, pro-rata, 2 drops/day","action_fields":{"weather_forecast":false,"margin":0.16,"kiranas_first":false,"twice_daily":true}},{"state":{"weather":"Heat wave","festival":false,"supply":"Normal","season":"Normal","kirana_fill":"92-96%"},"visits":655,"action":"weather forecast +0%, kiranas & staples first, 2 drops/day","action_fields":{"weather_forecast":true,"margin":0.0,"kiranas_first":true,"twice_daily":true}},{"state":{"weather":"Heat wave","festival":false,"supply":"Normal","season":"Normal","kirana_fill":"> 96%"},"visits":1107,"action":"weather forecast +8%, kiranas & staples first, 2 drops/day","action_fields":{"weather_forecast":true,"margin":0.08,"kiranas_first":true,"twice_daily":true}},{"state":{"weather":"Heat wave","festival":false,"supply":"Stressed","season":"Flush","kirana_fill":"92-96%"},"visits":25,"action":"weather forecast +8%, kiranas & staples first, 2 drops/day","action_fields":{"weather_forecast":true,"margin":0.08,"kiranas_first":true,"twice_daily":true}},{"state":{"weather":"Heat wave","festival":false,"supply":"Stressed","season":"Flush","kirana_fill":"> 96%"},"visits":50,"action":"weather forecast +8%, pro-rata, 1 drop/day","action_fields":{"weather_forecast":true,"margin":0.08,"kiranas_first":false,"twice_daily":false}},{"state":{"weather":"Heat wave","festival":false,"supply":"Stressed","season":"Lean","kirana_fill":"< 92%"},"visits":1407,"action":"weather forecast +16%, pro-rata, 2 drops/day","action_fields":{"weather_forecast":true,"margin":0.16,"kiranas_first":false,"twice_daily":true}},{"state":{"weather":"Heat wave","festival":false,"supply":"Stressed","season":"Lean","kirana_fill":"92-96%"},"visits":401,"action":"weather forecast +16%, pro-rata, 2 drops/day","action_fields":{"weather_forecast":true,"margin":0.16,"kiranas_first":false,"twice_daily":true}},{"state":{"weather":"Heat wave","festival":false,"supply":"Stressed","season":"Lean","kirana_fill":"> 96%"},"visits":226,"action":"weather forecast +0%, pro-rata, 2 drops/day","action_fields":{"weather_forecast":true,"margin":0.0,"kiranas_first":false,"twice_daily":true}},{"state":{"weather":"Heat wave","festival":false,"supply":"Stressed","season":"Normal","kirana_fill":"< 92%"},"visits":199,"action":"habit forecast +8%, pro-rata, 2 drops/day","action_fields":{"weather_forecast":false,"margin":0.08,"kiranas_first":false,"twice_daily":true}},{"state":{"weather":"Heat wave","festival":false,"supply":"Stressed","season":"Normal","kirana_fill":"92-96%"},"visits":66,"action":"weather forecast +16%, pro-rata, 2 drops/day","action_fields":{"weather_forecast":true,"margin":0.16,"kiranas_first":false,"twice_daily":true}},{"state":{"weather":"Heat wave","festival":false,"supply":"Stressed","season":"Normal","kirana_fill":"> 96%"},"visits":95,"action":"weather forecast +0%, kiranas & staples first, 2 drops/day","action_fields":{"weather_forecast":true,"margin":0.0,"kiranas_first":true,"twice_daily":true}},{"state":{"weather":"Heat wave","festival":true,"supply":"Normal","season":"Flush","kirana_fill":"< 92%"},"visits":25,"action":"weather forecast +16%, pro-rata, 2 drops/day","action_fields":{"weather_forecast":true,"margin":0.16,"kiranas_first":false,"twice_daily":true}},{"state":{"weather":"Heat wave","festival":true,"supply":"Normal","season":"Flush","kirana_fill":"92-96%"},"visits":66,"action":"weather forecast +0%, pro-rata, 2 drops/day","action_fields":{"weather_forecast":true,"margin":0.0,"kiranas_first":false,"twice_daily":true}},{"state":{"weather":"Heat wave","festival":true,"supply":"Normal","season":"Flush","kirana_fill":"> 96%"},"visits":76,"action":"weather forecast +0%, kiranas & staples first, 1 drop/day","action_fields":{"weather_forecast":true,"margin":0.0,"kiranas_first":true,"twice_daily":false}},{"state":{"weather":"Heat wave","festival":true,"supply":"Normal","season":"Normal","kirana_fill":"> 96%"},"visits":37,"action":"weather forecast +0%, pro-rata, 1 drop/day","action_fields":{"weather_forecast":true,"margin":0.0,"kiranas_first":false,"twice_daily":false}}]};
+</script>
+<script>
+"use strict";
+const { Twin } = DairyEngine;
+const $ = id => document.getElementById(id);
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const PRODUCTS = ["Pouch milk", "Curd", "Paneer", "Butter"];
+const CHANNELS = ["Kirana", "Modern trade", "Quick-commerce"];
+const DAYS = ["Thursday", "Friday", "Saturday", "Sunday", "Monday", "Tuesday", "Wednesday"]; // 1 Jan 2026 is a Thursday
+const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const fmt = (x, d = 0) => x.toLocaleString("en-IN", { maximumFractionDigits: d, minimumFractionDigits: d });
+const dateOf = d => { const dt = new Date(Date.UTC(2026, 0, 1 + d)); return `${dt.getUTCDate()} ${MONTHS[dt.getUTCMonth()]}`; };
+
+let twin, running = false, acc = 0, last = 0, selected = -1, cutMode = false, feed = [];
+const scenario = () => ({
+  battery_fridge_share: +$("batt").value / 100, kirana_returns: $("returns").checked,
+  force_twice_daily: $("twice").value === "auto" ? null : $("twice").value === "2",
+  forced_weather: {}, forced_outages: {},
+});
+
+function reset() {
+  twin = new Twin(CFG, scenario(), $("policy").value, +$("seed").value || 0);
+  twin.watch = selected;
+  feed = []; pushFeed(0, `Year ${$("seed").value} begins under the ${$("policy").value.toLowerCase()} policy`, "");
+  draw();
+}
+function pushFeed(day, text, cls) { feed.unshift({ day, text, cls }); if (feed.length > 60) feed.pop(); }
+
+// ------------------------------------------------------------------ stepping
+function stepDay() {
+  if (twin.day >= CFG.days) { running = false; $("play").textContent = "Run"; return; }
+  const prev = { ...twin.regime };
+  twin.watch = selected;
+  twin.step();
+  const r = twin.log[twin.log.length - 1];
+  if (r.weather && !prev.weather) pushFeed(r.day, "Heat wave begins: milk yield drops, curd demand jumps", "heat");
+  if (!r.weather && prev.weather) pushFeed(r.day, "Heat wave ends", "");
+  if (r.festival && !prev.festival) pushFeed(r.day, "Festival week: paneer and butter demand up", "");
+  if (r.supply && !prev.supply) pushFeed(r.day, "Supply stressed: fewer litres from villages", "bad");
+  const cuts = []; for (let l = 0; l < twin.nLoc; l++) if (twin.outHours[l] >= 2) cuts.push(`Sector ${l + 1} (${twin.outHours[l].toFixed(1)} h)`);
+  if (cuts.length) pushFeed(r.day, `Power cut: ${cuts.slice(0, 4).join(", ")}${cuts.length > 4 ? ` and ${cuts.length - 4} more` : ""}`, "cut");
+  if (r.late) pushFeed(r.day, `Van after 6 am on ${r.late} shops' route`, "");
+  if (r.milk < r.milkNeed * 0.92) pushFeed(r.day, `Milk short: ${fmt(r.milk / 1000, 1)}k litres in, ${fmt(r.milkNeed / 1000, 1)}k needed`, "bad");
+  if (twin.day === CFG.days) pushFeed(r.day, "Year complete", "");
+}
+function loop(ts) {
+  if (running) {
+    const dt = Math.min(0.25, (ts - last) / 1000 || 0); acc += dt * +$("speed").value;
+    let n = 0; while (acc >= 1 && n < 10) { stepDay(); acc -= 1; n++; }
+    if (n) draw();
+  }
+  last = ts; requestAnimationFrame(loop);
+}
+
+// ------------------------------------------------------------------ status
+function sumWin(key, days, fn) { const L = twin.log.slice(-days); return L.reduce((a, r) => a + fn(r), 0); }
+function decisionLabel(d) {
+  if (d.action) return d.action.label;
+  const p = twin.policyName;
+  return `${p === "Habit" ? "habit" : "weather"} forecast +${p === "Habit" ? 5 : 8}%, ${d.priority ? "kiranas & staples first" : (d.milkPriority ? "pro-rata, staples first" : "pro-rata")}, ${d.twice ? "2 drops" : "1 drop"}/day`;
+}
+function drawStatus() {
+  const d = Math.max(0, twin.day - 1), r = twin.log[twin.log.length - 1];
+  $("clockMain").textContent = dateOf(d);
+  $("clockSub").textContent = `Week ${Math.floor(d / 7) + 1} · ${DAYS[d % 7]} · day ${d + 1} of ${CFG.days}`;
+  $("mapDay").textContent = `${DAYS[d % 7]}, ${dateOf(d)}`;
+  const heat = twin.regime.weather === 1;
+  const cw = $("chipWeather"); cw.className = "chip " + (heat ? "heat" : "ok"); cw.textContent = heat ? "Heat wave" : "Normal";
+  const bits = []; if (twin.regime.festival) bits.push("festival week"); if (twin.regime.supply) bits.push("supply stressed");
+  $("weatherSub").textContent = bits.length ? bits.join(" · ") : " ";
+  $("decisionText").textContent = twin.decision ? "This week: " + decisionLabel(twin.decision) : "";
+  if (!r) return;
+  $("milkVal").textContent = fmt(r.milk);
+  $("milkSub").textContent = `${r.milk >= r.milkNeed ? "covers" : "short of"} ${fmt(r.milkNeed)} needed`;
+  const D = sumWin("d", 7, x => x.demand.flat().reduce((a, b) => a + b, 0)), S = sumWin("s", 7, x => x.sales.flat().reduce((a, b) => a + b, 0));
+  $("fillVal").textContent = (100 * S / Math.max(D, 1)).toFixed(1) + "%";
+  $("fillSub").textContent = `${fmt(D - S)} sales lost`;
+  const W = sumWin("w", 7, x => [x.wasteK, x.wasteP, x.wasteM, x.wasteQ].flat().reduce((a, b) => a + b, 0));
+  $("wasteVal").textContent = fmt(W);
+  $("migVal").textContent = fmt(CFG.city.households[0] - r.customers[0]);
+  $("cashVal").textContent = "₹" + ((r.cash - CFG.money.opening_cash) / 1e7).toFixed(2);
+  $("feed").innerHTML = feed.slice(0, 40).map(f => `<li class="${f.cls}"><span>${dateOf(f.day)}</span><span>${f.text}</span></li>`).join("");
+}
+
+// ------------------------------------------------------------------ map
+const map = $("map"); let mapGeom = null;
+function sizeCanvas(c, h) {
+  const dpr = window.devicePixelRatio || 1, w = c.clientWidth;
+  if (h) c.style.height = h + "px";
+  const hh = c.clientHeight;
+  if (c.width !== Math.round(w * dpr) || c.height !== Math.round(hh * dpr)) { c.width = Math.round(w * dpr); c.height = Math.round(hh * dpr); }
+  const ctx = c.getContext("2d"); ctx.setTransform(dpr, 0, 0, dpr, 0, 0); return { ctx, w, h: hh };
+}
+function shopState(i) {
+  const P = 4; let lost = 0, spoiled = 0;
+  for (let p = 0; p < P; p++) { lost += twin.todayL[i * P + p]; spoiled += twin.todaySpoiled[i * P + p]; }
+  let dem = 0; for (let p = 0; p < P; p++) dem += twin.todayD[i * P + p];
+  return { lost, spoiled, dem, short: lost >= Math.max(2, 0.05 * dem), fill: twin.shopVolume(i) / twin.cap[i] };
+}
+function drawMap() {
+  const gx = twin.gx, gy = twin.gy;
+  const w0 = map.clientWidth, h = Math.max(300, Math.min(700, w0 * gy / gx * 1.2));
+  const { ctx, w } = sizeCanvas(map, h);
+  const pad = 6, cw = (w - pad * 2) / gx, ch = (h - pad * 2) / gy;
+  mapGeom = { pad, cw, ch };
+  ctx.clearRect(0, 0, w, h);
+  const rule = css("--rule"), panel2 = css("--panel-2"), ink2 = css("--ink-2"), muted = css("--muted");
+  const late = new Set(); for (let i = 0; i < twin.n; i++) if (twin.lastLate[i]) late.add(twin.loc[i]);
+  for (let l = 0; l < twin.nLoc; l++) {
+    const x = pad + (l % gx) * cw, y = pad + Math.floor(l / gx) * ch;
+    ctx.fillStyle = twin.outHours[l] > 0 ? css("--cut-tint") : panel2;
+    ctx.fillRect(x + 2, y + 2, cw - 4, ch - 4);
+    ctx.strokeStyle = twin.outHours[l] > 0 ? css("--cut") : rule; ctx.lineWidth = 1;
+    ctx.strokeRect(x + 2.5, y + 2.5, cw - 5, ch - 5);
+    const small = cw < 150;
+    ctx.fillStyle = ink2; ctx.font = `600 ${small ? 11 : 13}px ${css("--f-display")}`; ctx.textBaseline = "top";
+    ctx.fillText(small ? `S${l + 1}` : `SECTOR ${l + 1}`, x + 7, y + 7);
+    ctx.font = `11px ${css("--f-mono")}`; ctx.fillStyle = muted;
+    const tags = [];
+    if (twin.outHours[l] > 0) tags.push(`power cut ${twin.outHours[l].toFixed(1)} h`);
+    if (late.has(l)) tags.push("van late");
+    if (cw >= 150) ctx.fillText(tags.join(" · "), x + 9, y + 24);
+    else if (twin.outHours[l] > 0) ctx.fillText(`${twin.outHours[l].toFixed(1)}h`, x + 7, y + 21);
+  }
+  // dark stores
+  for (let s = 0; s < twin.S; s++) {
+    const [qx, qy] = twin.qcPos[s], X = pad + qx * cw, Y = pad + qy * ch;
+    ctx.fillStyle = css("--ink"); ctx.fillRect(X - 5, Y - 5, 10, 10);
+    if (cw >= 150) { ctx.font = `10px ${css("--f-mono")}`; ctx.textAlign = "right"; ctx.textBaseline = "middle"; ctx.fillStyle = css("--muted"); ctx.fillText("dark store", X - 9, Y); ctx.textAlign = "left"; }
+  }
+  // shops
+  const s1 = css("--s1"), bad = css("--bad"), cut = css("--cut"), surf = css("--panel"), ink = css("--ink");
+  for (let i = 0; i < twin.n; i++) {
+    const [px, py] = twin.pos[i], X = pad + px * cw, Y = pad + py * ch;
+    const st = shopState(i), r = 2.6 + 9 * Math.sqrt(twin.share[i]);
+    ctx.beginPath(); ctx.arc(X, Y, r + 1.5, 0, Math.PI * 2); ctx.fillStyle = surf; ctx.fill();
+    ctx.beginPath(); ctx.arc(X, Y, r, 0, Math.PI * 2);
+    ctx.fillStyle = st.spoiled > 0 ? cut : st.short ? bad : s1;
+    ctx.globalAlpha = st.spoiled > 0 || st.short ? 1 : 0.4 + 0.6 * Math.min(1, st.fill * 1.6);
+    ctx.fill(); ctx.globalAlpha = 1;
+    if (twin.battery[i]) { ctx.strokeStyle = ink; ctx.lineWidth = 1.2; ctx.strokeRect(X - r - 3, Y - r - 3, 2 * r + 6, 2 * r + 6); }
+    if (i === selected) { ctx.beginPath(); ctx.arc(X, Y, r + 5, 0, Math.PI * 2); ctx.strokeStyle = ink; ctx.lineWidth = 2; ctx.stroke(); }
+  }
+  ctx.fillStyle = muted; ctx.font = `10.5px ${css("--f-body")}`; ctx.textBaseline = "alphabetic";
+}
+function mapHit(ev) {
+  const rect = map.getBoundingClientRect(), x = ev.clientX - rect.left, y = ev.clientY - rect.top, g = mapGeom;
+  if (!g) return null;
+  let best = -1, bd = 1e9;
+  for (let i = 0; i < twin.n; i++) {
+    const X = g.pad + twin.pos[i][0] * g.cw, Y = g.pad + twin.pos[i][1] * g.ch, d = (X - x) ** 2 + (Y - y) ** 2;
+    if (d < bd) { bd = d; best = i; }
+  }
+  const sector = Math.floor((y - g.pad) / g.ch) * twin.gx + Math.floor((x - g.pad) / g.cw);
+  return { shop: bd < 14 * 14 ? best : -1, sector: Math.max(0, Math.min(twin.nLoc - 1, sector)) };
+}
+map.addEventListener("click", ev => {
+  const h = mapHit(ev); if (!h) return;
+  if (cutMode) {
+    const d = twin.day; twin.scen.forced_outages[d] = twin.scen.forced_outages[d] || {}; twin.scen.forced_outages[d][h.sector] = 7;
+    pushFeed(d, `You cut power to Sector ${h.sector + 1} for 7 hours tomorrow afternoon`, "cut");
+    cutMode = false; $("cutBtn").setAttribute("aria-pressed", "false"); $("mapHint").textContent = "Click a shop to inspect it. Use “Cut power” then click a sector to black it out tomorrow.";
+  } else if (h.shop >= 0) { selected = h.shop; twin.watch = selected; }
+  draw();
+});
+map.addEventListener("mousemove", ev => {
+  const h = mapHit(ev), tip = $("tip");
+  if (!h || h.shop < 0 || cutMode) { tip.hidden = true; return; }
+  const i = h.shop, st = shopState(i);
+  tip.innerHTML = `<div class="t">Shop ${i + 1} · Sector ${twin.loc[i] + 1}</div>
+    <div class="r"><span>Fridge</span><span>${Math.round(100 * st.fill)}% full</span></div>
+    <div class="r"><span>Turned away today</span><span>${st.lost}</span></div>
+    <div class="r"><span>Spoiled today</span><span>${st.spoiled}</span></div>`;
+  showTip(ev);
+});
+map.addEventListener("mouseleave", () => { $("tip").hidden = true; });
+function showTip(ev) {
+  const tip = $("tip"); tip.hidden = false;
+  const x = Math.min(window.innerWidth - tip.offsetWidth - 8, ev.clientX + 14), y = Math.min(window.innerHeight - tip.offsetHeight - 8, ev.clientY + 14);
+  tip.style.left = x + "px"; tip.style.top = y + "px";
+}
+
+// ------------------------------------------------------------------ inspector
+function drawInspector() {
+  if (selected < 0) return;
+  const i = selected, P = 4, st = shopState(i);
+  $("inspTitle").textContent = `Shop ${i + 1} · Sector ${twin.loc[i] + 1}`;
+  let ages = "";
+  const by = twin.shopStockByAge(i);
+  for (let p = 0; p < P; p++) {
+    let row = by[p];
+    if (row.length > 8) row = row.slice(0, 7).concat([row.slice(7).reduce((a, b) => a + b, 0)]);
+    const mx = Math.max(1, ...row);
+    const cells = row.map((v, a) => `<span title="age ${a}${a === 7 && by[p].length > 8 ? "+" : ""} days: ${v} units" style="background:${v ? `color-mix(in srgb, var(--s1) ${Math.round(20 + 70 * v / mx)}%, var(--panel))` : ""}"><em>${v || ""}</em></span>`).join("");
+    ages += `<div>${PRODUCTS[p]}</div><div class="agebar">${cells}</div>`;
+  }
+  const kb = twin.kBase[i], k = twin.k[i];
+  $("inspBody").className = "";
+  $("inspBody").innerHTML = `
+    <dl class="kv">
+      <dt>Fridge</dt><dd>${Math.round(twin.cap[i])} pouch-slots · ${Math.round(100 * st.fill)}% full${twin.battery[i] ? " · battery" : ""}</dd>
+      <dt>Caution k</dt><dd>${k.toFixed(2)} <span class="muted">(normal ${kb.toFixed(2)})</span></dd>
+      <dt>Share of city</dt><dd>${(100 * twin.share[i]).toFixed(2)}% of kirana demand</dd>
+    </dl>
+    <div class="ages"><div class="muted">Stock by age</div><div class="muted" style="display:flex;justify-content:space-between"><span>fresh</span><span>expires →</span></div>${ages}</div>
+    <h3 style="margin-top:12px">Rules that fired today</h3>
+    <ul class="rules">${(twin.watchLog.length ? twin.watchLog : ["Step a day to see this shop's rules fire"]).map(s => `<li>${s.replace(/^(R\d+)/, "<b>$1</b>")}</li>`).join("")}</ul>`;
+}
+
+// ------------------------------------------------------------------ charts
+function lineChart(canvas, opt) {
+  const { ctx, w, h } = sizeCanvas(canvas);
+  const m = { l: 46, r: opt.labelRoom ?? 92, t: 8, b: 22 }, iw = w - m.l - m.r, ih = h - m.t - m.b;
+  ctx.clearRect(0, 0, w, h);
+  const n = opt.n, xs = i => m.l + (n <= 1 ? 0 : i / (n - 1)) * iw;
+  let lo = opt.min ?? Infinity, hi = opt.max ?? -Infinity;
+  if (opt.min === undefined || opt.max === undefined) for (const s of opt.series) for (const v of (s.band ? s.band.flat() : s.data)) if (Number.isFinite(v)) { if (opt.min === undefined) lo = Math.min(lo, v); if (opt.max === undefined) hi = Math.max(hi, v); }
+  if (!Number.isFinite(lo)) { lo = 0; hi = 1; } if (hi === lo) hi = lo + 1;
+  const ys = v => m.t + ih - (v - lo) / (hi - lo) * ih;
+  // shading
+  if (opt.shade) { ctx.fillStyle = css("--heat-tint"); for (let i = 0; i < n; i++) if (opt.shade[i] > 0) { ctx.globalAlpha = Math.min(1, opt.shade[i] * (opt.shadeScale || 1)); ctx.fillRect(xs(i) - iw / Math.max(1, n - 1) / 2, m.t, iw / Math.max(1, n - 1) + 0.5, ih); } ctx.globalAlpha = 1; }
+  // grid
+  ctx.strokeStyle = css("--rule-2"); ctx.lineWidth = 1; ctx.fillStyle = css("--muted"); ctx.font = `10.5px ${css("--f-mono")}`;
+  ctx.textAlign = "right"; ctx.textBaseline = "middle";
+  for (let k = 0; k <= 4; k++) { const v = lo + (hi - lo) * k / 4, y = Math.round(ys(v)) + 0.5; ctx.beginPath(); ctx.moveTo(m.l, y); ctx.lineTo(m.l + iw, y); ctx.stroke(); ctx.fillText(opt.fmtY(v), m.l - 6, y); }
+  ctx.textAlign = "center"; ctx.textBaseline = "top";
+  for (const t of opt.xTicks || []) ctx.fillText(t.label, xs(t.i), m.t + ih + 6);
+  // bands and lines
+  for (const s of opt.series) {
+    if (s.band) { ctx.fillStyle = s.color; ctx.globalAlpha = 0.16; ctx.beginPath();
+      s.band[0].forEach((v, i) => i ? ctx.lineTo(xs(i), ys(v)) : ctx.moveTo(xs(i), ys(v)));
+      for (let i = s.band[1].length - 1; i >= 0; i--) ctx.lineTo(xs(i), ys(s.band[1][i])); ctx.closePath(); ctx.fill(); ctx.globalAlpha = 1; }
+    ctx.strokeStyle = s.color; ctx.lineWidth = s.width || 2; ctx.lineJoin = "round"; ctx.beginPath();
+    let started = false; s.data.forEach((v, i) => { if (!Number.isFinite(v)) return; const X = xs(i), Y = ys(v); started ? ctx.lineTo(X, Y) : ctx.moveTo(X, Y); started = true; }); ctx.stroke();
+  }
+  // direct labels at the end, nudged apart
+  const ends = opt.series.filter(s => s.label).map(s => { let j = s.data.length - 1; while (j > 0 && !Number.isFinite(s.data[j])) j--; return { s, y: ys(s.data[j]), x: xs(j) }; }).sort((a, b) => a.y - b.y);
+  for (let k = 1; k < ends.length; k++) if (ends[k].y - ends[k - 1].y < 13) ends[k].y = ends[k - 1].y + 13;
+  ctx.textAlign = "left"; ctx.textBaseline = "middle"; ctx.font = `500 11.5px ${css("--f-body")}`;
+  for (const e of ends) { ctx.fillStyle = e.s.color; ctx.beginPath(); ctx.arc(e.x, ys(e.s.data[e.s.data.length - 1]) || e.y, 3, 0, 7); ctx.fill(); ctx.fillStyle = css("--ink-2"); ctx.fillText(e.s.label, m.l + iw + 8, Math.min(h - 8, Math.max(8, e.y))); }
+  canvas._chart = { opt, m, iw, ih, n, xs };
+}
+function attachHover(canvas) {
+  canvas.addEventListener("mousemove", ev => {
+    const c = canvas._chart; if (!c || c.n < 1) return;
+    const rect = canvas.getBoundingClientRect(), x = ev.clientX - rect.left;
+    const i = Math.max(0, Math.min(c.n - 1, Math.round((x - c.m.l) / Math.max(1, c.iw) * (c.n - 1))));
+    const o = c.opt;
+    $("tip").innerHTML = `<div class="t">${o.xLabel(i)}</div>` + o.series.filter(s => s.tip !== false).map(s =>
+      `<div class="r"><span><i style="background:${s.color}"></i>${s.name}</span><span>${Number.isFinite(s.data[i]) ? o.fmtY(s.data[i], true) : "–"}</span></div>`).join("");
+    showTip(ev);
+  });
+  canvas.addEventListener("mouseleave", () => { $("tip").hidden = true; });
+}
+const roll = (arr, k) => arr.map((_, i) => { const a = Math.max(0, i - k + 1); let s = 0; for (let j = a; j <= i; j++) s += arr[j]; return s / (i - a + 1); });
+function monthTicks(n) { const t = []; for (let m = 0; m < 12; m++) { const d = Math.round((Date.UTC(2026, m, 1) - Date.UTC(2026, 0, 1)) / 864e5); if (d < n && m % 2 === 0) t.push({ i: d, label: MONTHS[m] }); } return t; }
+function drawCharts() {
+  const L = twin.log, n = CFG.days; if (!L.length) return;
+  const pad = a => a.concat(new Array(Math.max(0, n - a.length)).fill(NaN));
+  const shade = pad(L.map(r => r.weather));
+  const xl = i => `${dateOf(i)} · day ${i + 1}`, ticks = monthTicks(n);
+  lineChart($("cMilk"), { n, shade, xTicks: ticks, xLabel: xl, min: 0, fmtY: v => fmt(v / 1000, 0) + "k",
+    series: [{ name: "Reaching plant", label: "Supply", color: css("--s1"), data: pad(L.map(r => r.milk)) },
+             { name: "Needed", label: "Need", color: css("--s-muted"), data: pad(L.map(r => r.milkNeed)) }] });
+  const fillCh = c => { const d = L.map(r => r.demand[c].reduce((a, b) => a + b, 0)), s = L.map(r => r.sales[c].reduce((a, b) => a + b, 0)); const rd = roll(d, 7), rs = roll(s, 7); return pad(rd.map((x, i) => 100 * rs[i] / Math.max(x, 1))); };
+  lineChart($("cFill"), { n, shade, xTicks: ticks, xLabel: xl, max: 100, fmtY: (v, t) => v.toFixed(t ? 1 : 0) + "%",
+    series: [0, 1, 2].map(c => ({ name: CHANNELS[c], label: ["Kirana", "Modern tr.", "Q-comm"][c], color: css(["--s1", "--s2", "--s3"][c]), data: fillCh(c) })) });
+  lineChart($("cWaste"), { n, shade, xTicks: ticks, xLabel: xl, min: 0, fmtY: v => fmt(v),
+    series: [{ name: "At kiranas", label: "Kiranas", color: css("--s1"), data: pad(L.map(r => r.wasteK.reduce((a, b) => a + b, 0))) },
+             { name: "Brand-side", label: "Brand-side", color: css("--s3"), data: pad(L.map(r => [r.wasteP, r.wasteM, r.wasteQ].flat().reduce((a, b) => a + b, 0))) }] });
+  lineChart($("cBull"), { n, shade, xTicks: ticks, xLabel: xl, fmtY: v => fmt(v / 1000, 0) + "k",
+    series: [{ name: "Kirana orders", label: "Orders", color: css("--s1"), data: pad(L.map(r => r.kOrders[0])) },
+             { name: "Customer demand", label: "Demand", color: css("--s-muted"), data: pad(L.map(r => r.demand[0][0])) }] });
+}
+
+// ------------------------------------------------------------------ Monte Carlo section (Python results)
+function drawMC() {
+  if (!MC || !MC.experiments) return;
+  $("mcN").textContent = MC.n_years; $("mcN2").textContent = MC.n_years;
+  const E = Object.fromEntries(MC.experiments.map(e => [e.key, e]));
+  const pick = [
+    ["Heat-aware vs Habit", "Heat-aware policy, typical years", "lost"],
+    ["Learned vs Heat-aware", "Learned policy vs heat-aware: lost sales", "lost"],
+    ["Learned vs Heat-aware", "Learned policy vs heat-aware: the score it was trained on", "reward10"],
+    ["Learned vs Heat-aware", "Learned policy vs heat-aware: waste", "waste_units"],
+    ["Learned vs Heat-aware", "The catch: the learned policy meets the full goal far less often", "predicate_share",
+     "Its reward counts every lost unit the same and knows nothing of per-channel targets, so it lets supermarket butter, and milk in some weeks, sit just under target while total lost sales fall. The reward barely notices; the goal predicate does."],
+    ["Power cuts vs none (typical years)", "What power cuts cost in a typical year", "waste_units"],
+    ["Battery fridges (risk-targeted) vs none", "30% battery fridges on the riskiest feeders", "waste_units"],
+    ["Kirana returns vs none", "Taking back unsold kirana stock", "profit"],
+  ];
+  const unit = {
+    lost: [v => `${fmt(Math.abs(v) / 1000, 0)}k units`, "lost sales per year"],
+    waste_units: [v => `${fmt(Math.abs(v) / 1000, 0)}k units`, "waste per year"],
+    profit: [v => `₹${fmt(Math.abs(v) * 100, 0)} lakh`, "profit per year"],
+    reward10: [v => `₹${fmt(Math.abs(v), 0)} lakh`, "reward per year (profit − ₹10 × lost units)"],
+    predicate_share: [v => `${Math.abs(v).toFixed(1)} weeks in 100`, "weeks the goal predicate holds"],
+  };
+  const higherIsBetter = { profit: true, predicate_share: true, reward10: true };
+  $("effects").innerHTML = pick.map(([key, title, metric, note]) => {
+    const e = MC.paired_effects.find(x => x.comparison === key); if (!e) return "";
+    const v = e[metric], [f, what] = unit[metric];
+    const good = higherIsBetter[metric] ? v.mean > 0 : v.mean < 0;
+    const sign = v.mean < 0 ? "−" : "+";
+    const ci = v.ci95.map(x => (x < 0 ? "−" : "+") + f(x)).join(" to ");
+    const share = Math.round(100 * v.share_years_better);
+    const freq = good ? `Better in ${share}% of the ${MC.n_years} paired years.` : `Worse in ${100 - share}% of the ${MC.n_years} paired years.`;
+    return `<div class="effect"><div class="n">${title}</div>
+      <div class="big ${good ? "good" : "bad"}">${sign}${f(v.mean)}</div>
+      <div class="d">${what} (95% CI ${ci}). ${freq}${note ? " " + note : ""}</div></div>`;
+  }).join("");
+  const rows = MC.experiments.map(e => {
+    const c = (s, f, u = "") => `${f(s.p50)}${u}<small>${f(s.p5)}–${f(s.p95)}</small>`;
+    return `<tr><td>${e.label}</td><td>${c(e.fill_pct, x => x.toFixed(1), "%")}</td><td>${c(e.fill_heat_pct, x => x.toFixed(1), "%")}</td>
+      <td>${c(e.worst_week_fill_pct, x => x.toFixed(1), "%")}</td><td>${c(e.waste_units, x => fmt(x / 1000, 0), "k")}</td>
+      <td>${c(e.lost_units, x => (x / 1e6).toFixed(2), "M")}</td><td>${c(e.kirana_customers_lost, x => fmt(x, 0))}</td>
+      <td>${e.reward_lam10_lakh ? c(e.reward_lam10_lakh, x => fmt(x, 0)) : "–"}</td>
+      <td>${c(e.predicate_weeks_pct, x => x.toFixed(0), "%")}</td><td>${e.behaviour_pct ? Math.round(e.behaviour_pct.all) + "%" : "–"}</td></tr>`;
+  }).join("");
+  document.querySelector("#mcTable tbody").innerHTML = rows;
+  const F = MC.fans, W = F.habit.fill.p50.length, wl = i => `Week ${i + 1}`;
+  const wt = []; for (let m = 0; m < 12; m += 2) wt.push({ i: Math.round(m * 52 / 12), label: MONTHS[m] });
+  lineChart($("mcFill"), { n: W, shade: F.heat_share, shadeScale: 1.6, xTicks: wt, xLabel: wl, fmtY: (v, t) => v.toFixed(t ? 1 : 0) + "%", labelRoom: 82,
+    series: [{ name: "Habit", label: "Habit", color: css("--s1"), data: F.habit.fill.p50, band: [F.habit.fill.p5, F.habit.fill.p95] },
+             { name: "Heat-aware", label: "Heat-aware", color: css("--s3"), data: F.heat.fill.p50, band: [F.heat.fill.p5, F.heat.fill.p95] }]
+      .concat(F.learned ? [{ name: "Learned", label: "Learned", color: css("--s2"), data: F.learned.fill.p50, band: [F.learned.fill.p5, F.learned.fill.p95] }] : []) });
+  drawPolicyTable();
+  lineChart($("mcWaste"), { n: W, shade: F.heat_share, shadeScale: 1.6, xTicks: wt, xLabel: wl, min: 0, fmtY: v => fmt(v / 1000, 0) + "k", labelRoom: 82,
+    series: [{ name: "With power cuts", label: "Power cuts", color: css("--s1"), data: F.habit.waste.p50, band: [F.habit.waste.p5, F.habit.waste.p95] },
+             { name: "No power cuts", label: "No cuts", color: css("--s-muted"), data: F.habit_nocut.waste.p50, band: [F.habit_nocut.waste.p5, F.habit_nocut.waste.p95] }] });
+}
+
+function drawPolicyTable() {
+  const T = MC.policy_table; if (!T || !T.length) return;
+  const rows = T.slice().sort((a, b) => b.visits - a.visits).map(r => {
+    const s = r.state, a = r.action_fields;
+    return `<tr><td>${s.weather}${s.festival ? ", festival" : ""}${s.supply === "Stressed" ? ", supply stressed" : ""}</td><td>${s.season}</td><td>${s.kirana_fill}</td>
+      <td>${a.weather_forecast ? "Weather" : "Habit"}</td><td>+${Math.round(a.margin * 100)}%</td><td>${a.kiranas_first ? "Kiranas & staples first" : "Pro-rata"}</td>
+      <td>${a.twice_daily ? "2" : "1"}</td><td>${fmt(r.visits)}</td></tr>`;
+  }).join("");
+  $("policySection").innerHTML = `<h2 style="margin-top:18px">What the learned policy does</h2>
+    <p class="foot" style="margin:4px 0 0">One row per situation the policy met at least 20 times in training. Situation = this week's weather, festival and village supply, the season, and the share of kirana demand met last week.</p>
+    <div class="tablewrap"><table><thead><tr><th>Conditions</th><th>Season</th><th>Kirana fill last week</th><th>Forecast</th><th>Margin</th><th>When stock is short</th><th>Drops / day</th><th>Weeks seen</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+}
+
+// ------------------------------------------------------------------ wiring
+function draw() { drawStatus(); drawMap(); drawInspector(); drawCharts(); }
+$("play").addEventListener("click", () => { if (twin.day >= CFG.days) reset(); running = !running; $("play").textContent = running ? "Pause" : "Run"; });
+$("stepBtn").addEventListener("click", () => { stepDay(); draw(); });
+$("speed").addEventListener("input", () => { $("speedLab").textContent = `${$("speed").value} days/s`; });
+$("reset").addEventListener("click", () => { running = false; $("play").textContent = "Run"; $("seed").value = (+$("seed").value + 1) % 10000; reset(); });
+$("policy").addEventListener("change", () => { twin.policyName = $("policy").value; pushFeed(twin.day, `Policy switched to ${$("policy").value.toLowerCase()} (takes effect next week)`, ""); drawStatus(); });
+$("heatBtn").addEventListener("click", () => {
+  const w = Math.floor(twin.day / 7); for (let k = 0; k < 3; k++) twin.scen.forced_weather[w + k + 1] = 1;
+  if (twin.regime.weather !== 1) { twin.regime.weather = 1; twin.decide(); }
+  pushFeed(twin.day, "You started a 3-week heat wave", "heat"); draw();
+});
+$("cutBtn").addEventListener("click", () => { cutMode = !cutMode; $("cutBtn").setAttribute("aria-pressed", String(cutMode)); $("mapHint").textContent = cutMode ? "Click a sector to cut its power for 7 hours tomorrow afternoon." : "Click a shop to inspect it. Use “Cut power” then click a sector to black it out tomorrow."; });
+$("batt").addEventListener("input", () => { $("battLab").textContent = $("batt").value + "%"; twin.applyBatteries(+$("batt").value / 100, "risk", new DairyEngine.RNG(99)); twin.scen.battery_fridge_share = +$("batt").value / 100; drawMap(); });
+$("batt").addEventListener("change", () => pushFeed(twin.day, `Battery fridges now in ${$("batt").value}% of kiranas (riskiest feeders first)`, ""));
+$("twice").addEventListener("change", () => { const v = $("twice").value; twin.scen.force_twice_daily = v === "auto" ? null : v === "2"; if (twin.decision) twin.decide(); pushFeed(twin.day, v === "auto" ? "Delivery frequency back to the policy" : `Kirana deliveries forced to ${v === "2" ? "twice" : "once"} a day`, ""); drawStatus(); });
+$("returns").addEventListener("change", () => {
+  const on = $("returns").checked, b = CFG.kirana.returns_k_bonus;
+  for (let i = 0; i < twin.n; i++) twin.kBase[i] += on ? b : -b;
+  twin.scen.kirana_returns = on; pushFeed(twin.day, on ? "Brand now takes back unsold kirana stock: shops order bolder" : "Returns stopped", "");
+});
+[$("cMilk"), $("cFill"), $("cWaste"), $("cBull"), $("mcFill"), $("mcWaste")].forEach(attachHover);
+let rz; window.addEventListener("resize", () => { clearTimeout(rz); rz = setTimeout(() => { draw(); drawMC(); }, 120); });
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => { draw(); drawMC(); });
+new MutationObserver(() => { draw(); drawMC(); }).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+
+// open in a realistic working state: early summer, the heat-aware question live
+selected = 37;
+reset();
+for (let d = 0; d < 120; d++) stepDay();
+draw(); drawMC();
+requestAnimationFrame(loop);
+</script>

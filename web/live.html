@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Live mirror</title>
+<style>
+:root{--bg:#f6f5f1;--panel:#fff;--ink:#1d1d1b;--mute:#6b6a66;--line:#e3e1da;--milk:#4f6d8f;--curd:#c79a2a;--heat:#d7462d;--cut:#6f4bb0;--good:#2e8b57;--bad:#c62828;--accent:#1f5f99;--real:#1d1d1b;--twin:#1f5f99}
+@media (prefers-color-scheme:dark){:root{--bg:#161614;--panel:#1f1f1c;--ink:#ecebe6;--mute:#a09f98;--line:#35342f;--real:#ecebe6;--twin:#6aa6e0;--accent:#6aa6e0}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 -apple-system,"Segoe UI",Inter,Roboto,sans-serif}
+header{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;padding:10px 16px;background:var(--panel);border-bottom:1px solid var(--line)}
+h1{font-size:16px;margin:0}
+select,button,input{font:inherit;border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:6px;padding:5px 9px}
+button{cursor:pointer}button.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+button:hover{filter:brightness(.96)}
+.lbl{color:var(--mute);font-size:12.5px;display:flex;align-items:center;gap:6px}
+#status{display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center;padding:8px 16px;border-bottom:1px solid var(--line);font-size:13px}
+.b{display:inline-block;padding:1px 8px;border-radius:999px;font-size:12px;font-weight:600;border:1px solid var(--line);color:var(--mute)}
+.b.heat{background:var(--heat);color:#fff;border-color:var(--heat)}.b.sup{background:#8a6d3b;color:#fff;border-color:#8a6d3b}.b.fest{background:var(--curd);color:#fff;border-color:var(--curd)}.b.cut{background:var(--cut);color:#fff;border-color:var(--cut)}
+main{display:grid;grid-template-columns:minmax(300px,1fr) minmax(320px,1.15fr);gap:14px;padding:14px 16px}
+@media(max-width:900px){main{grid-template-columns:1fr}}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px}
+.card h2{margin:0 0 6px;font-size:13px;font-weight:600}
+.card .hint{color:var(--mute);font-size:12px;margin:0 0 8px}
+canvas{width:100%;display:block}
+.row{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:6px 0}
+table{border-collapse:collapse;width:100%;font-size:12.5px}th,td{padding:4px 6px;text-align:right;border-bottom:1px solid var(--line)}th:first-child,td:first-child{text-align:left}
+.leg{display:flex;gap:12px;font-size:12px;color:var(--mute);margin-bottom:4px}.leg i{display:inline-block;width:18px;height:0;border-top:2px solid;vertical-align:middle;margin-right:4px}
+</style></head><body>
+<header>
+  <h1>Live mirror</h1>
+  <button id="play" class="primary">Play</button><button id="step">Step 1 day</button>
+  <label class="lbl">Speed <select id="rate"><option value="1">1 day/s</option><option value="2" selected>2 days/s</option><option value="5">5 days/s</option><option value="10">10 days/s</option></select></label>
+  <label class="lbl">Twin follows feed <select id="sync"><option value="off">Off (plain simulation)</option><option value="regimes">Weather, supply, power cuts</option><option value="full" selected>Full (plus demand and stock readings)</option></select></label>
+  <label class="lbl">Policy <select id="policy"></select></label>
+  <button id="reset">Restart</button>
+  <span class="lbl" id="dayLbl"></span>
+</header>
+<div id="status"></div>
+<main>
+  <div>
+    <div class="card">
+      <h2>City</h2>
+      <p class="hint">240 kirana shops. Rings mark shops with a stock sensor. Click a shop to cut power to its area for a day.</p>
+      <div class="row"><label class="lbl">Colour by <select id="view"><option value="fill_r">Reality: share of demand met today</option><option value="fill_t">Twin: share of demand met today</option><option value="gap">Twin minus reality: stock on shelf</option></select></label></div>
+      <canvas id="map" width="640" height="480"></canvas>
+    </div>
+    <div class="card" style="margin-top:14px">
+      <h2>Change the reality</h2>
+      <p class="hint">These act on the fake world that produces the feed. Watch how fast the twin notices.</p>
+      <div class="row"><button data-k="heat" data-d="7">Heat wave, 7 days</button><button data-k="stress" data-d="7">Milk supply stress, 7 days</button><button data-k="festival" data-d="5">Festival, 5 days</button><button data-k="cut" data-d="1">Power cut, random area</button><button id="clear">Clear shocks</button></div>
+      <div class="row"><label class="lbl">Demand level <input id="dem" type="range" min="0.6" max="1.6" step="0.05" value="1.3"> <b id="demv">1.30×</b></label><button id="demGo">Apply for 7 days</button></div>
+    </div>
+  </div>
+  <div>
+    <div class="card"><h2>Kirana demand met, per day</h2><div class="leg"><span><i style="border-color:var(--real)"></i>Reality</span><span><i style="border-color:var(--twin);border-top-style:dashed"></i>Twin</span></div><canvas id="c1" width="700" height="190"></canvas></div>
+    <div class="card" style="margin-top:14px"><h2>How far the twin's stock is from reality</h2><p class="hint">Gap in shelf stock across all shops, as a share of stock. Lower is better.</p><canvas id="c2" width="700" height="150"></canvas></div>
+    <div class="card" style="margin-top:14px"><h2>Demand level: true vs the twin's estimate</h2><canvas id="c3" width="700" height="130"></canvas></div>
+    <div class="card" style="margin-top:14px"><h2>Next 14 days, from the twin's current state <span id="fstat" class="lbl" style="display:inline"></span></h2>
+      <p class="hint">Eight possible futures for each policy, starting today. Line is the average kirana demand met; the band shows the 10th to 90th percentile.</p>
+      <div class="row"><button id="fgo">Forecast now</button><label class="lbl"><input type="checkbox" id="fauto" checked> Every Monday</label></div>
+      <div class="leg" id="fleg"></div><canvas id="c4" width="700" height="190"></canvas>
+      <table id="ftab"></table>
+    </div>
+  </div>
+</main>
+<script>
+const $=s=>document.querySelector(s);
+const PCOL={"Habit":"#8a8a85","Heat-aware":"#d2652b","Learned":"#2f8f83"};
+let S=null,ST=null,busy=false;
+const api=(action,extra={})=>fetch("/api/control",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action,...extra})});
+// the server routes POST on any path
+fetch("/api/init").then(r=>r.json()).then(j=>{S=j;
+  $("#policy").innerHTML=j.policies.map(p=>`<option>${p}</option>`).join("");draw();});
+function css(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim()}
+function ramp(f){ if(f<0)return "#9a9a95"; const t=Math.max(0,Math.min(1,(f-60)/40)); const a=[198,40,40],b=[46,139,87],m=[224,170,60];
+  const lerp=(x,y,u)=>x.map((v,i)=>Math.round(v+(y[i]-v)*u)); const c=t<.5?lerp(a,m,t*2):lerp(m,b,(t-.5)*2); return `rgb(${c})`}
+function gapCol(g,scale){const u=Math.max(-1,Math.min(1,g/scale)); return u>=0?`rgba(31,95,153,${.15+.85*u})`:`rgba(210,101,43,${.15+.85*-u})`}
+function drawMap(){
+  if(!S||!ST)return; const c=$("#map"),x=c.getContext("2d"); const W=c.width,H=c.height; x.clearRect(0,0,W,H);
+  const [gx,gy]=S.grid, sx=W/gx, sy=H/gy, sh=ST.shops||{};
+  x.strokeStyle=css("--line"); x.lineWidth=1;
+  for(let i=0;i<=gx;i++){x.beginPath();x.moveTo(i*sx,0);x.lineTo(i*sx,H);x.stroke()}
+  for(let j=0;j<=gy;j++){x.beginPath();x.moveTo(0,j*sy);x.lineTo(W,j*sy);x.stroke()}
+  const view=$("#view").value, hours=sh.hours||[];
+  const gaps=view==="gap"&&sh.stock_t?sh.stock_t.map((v,i)=>v-sh.stock_r[i]):null;
+  const gs=gaps?Math.max(20,...gaps.map(Math.abs)):1;
+  S.shop_pos.forEach((p,i)=>{
+    const px=p[0]*sx, py=p[1]*sy;
+    if(hours[S.shop_locality[i]]>0){x.fillStyle="rgba(111,75,176,.22)";x.beginPath();x.arc(px,py,13,0,7);x.fill()}
+    x.fillStyle=gaps?gapCol(gaps[i],gs):ramp(sh[view]?sh[view][i]:-1);
+    x.beginPath();x.arc(px,py,6,0,7);x.fill();
+    if(S.sensors[i]){x.strokeStyle=css("--ink");x.lineWidth=1.4;x.beginPath();x.arc(px,py,8.5,0,7);x.stroke()}
+  });
+}
+$("#map").addEventListener("click",e=>{ if(!S)return; const c=$("#map"),r=c.getBoundingClientRect(); const mx=(e.clientX-r.left)*c.width/r.width,my=(e.clientY-r.top)*c.height/r.height;
+  const [gx,gy]=S.grid,sx=c.width/gx,sy=c.height/gy; let best=-1,bd=1e9; S.shop_pos.forEach((p,i)=>{const d=(p[0]*sx-mx)**2+(p[1]*sy-my)**2;if(d<bd){bd=d;best=i}});
+  if(best>=0&&bd<26**2){api("inject",{kind:"cut",value:6,days:1,locality:S.shop_locality[best]})}});
+function lineChart(id,series,o={}){
+  const c=$(id),x=c.getContext("2d"),W=c.width,H=c.height,L=44,R=8,T=8,B=20; x.clearRect(0,0,W,H);
+  const n=o.n||Math.max(...series.map(s=>s.y.length)); const all=series.flatMap(s=>[...s.y,...(s.lo||[]),...(s.hi||[])]).filter(v=>v!=null&&isFinite(v));
+  let lo=o.min!=null?o.min:Math.min(...all),hi=o.max!=null?o.max:Math.max(...all); if(hi-lo<1e-9){hi=lo+1}
+  const X=i=>L+(W-L-R)*(n<=1?0:i/(n-1)),Y=v=>T+(H-T-B)*(1-(v-lo)/(hi-lo));
+  x.font="11px sans-serif";x.fillStyle=css("--mute");x.strokeStyle=css("--line");x.lineWidth=1;
+  for(let k=0;k<=3;k++){const v=lo+(hi-lo)*k/3,yy=Y(v);x.beginPath();x.moveTo(L,yy);x.lineTo(W-R,yy);x.stroke();x.fillText((o.fmt||(a=>a.toFixed(2)))(v),2,yy+4)}
+  if(o.bands)o.bands.forEach(([a,b,col])=>{x.fillStyle=col;x.fillRect(X(a),T,Math.max(2,X(b)-X(a)),H-T-B)});
+  x.fillStyle=css("--mute"); (o.xl||[]).forEach(([i,t],k,a)=>{const w=x.measureText(t).width;x.fillText(t,k===a.length-1?W-R-w:X(i)-6,H-5)});
+  series.forEach(s=>{ if(s.lo){x.fillStyle=s.col+"33";x.beginPath();s.lo.forEach((v,i)=>x[i?"lineTo":"moveTo"](X(i),Y(v)));for(let i=s.hi.length-1;i>=0;i--)x.lineTo(X(i),Y(s.hi[i]));x.fill()}
+    x.strokeStyle=s.col;x.lineWidth=2;x.setLineDash(s.dash||[]);x.beginPath();s.y.forEach((v,i)=>{if(v==null)return;x[i?"lineTo":"moveTo"](X(i),Y(v))});x.stroke();x.setLineDash([])});
+}
+function charts(){
+  if(!ST)return; const h=ST.hist.slice(-60); if(!h.length)return;
+  const bands=[];let s0=null;h.forEach((r,i)=>{if(r.weather_r&&s0==null)s0=i;if(!r.weather_r&&s0!=null){bands.push([s0,i-1,"rgba(215,70,45,.10)"]);s0=null}});if(s0!=null)bands.push([s0,h.length-1,"rgba(215,70,45,.10)"]);
+  const xl=[[0,"day "+h[0].day],[h.length-1,"day "+h[h.length-1].day]];
+  lineChart("#c1",[{y:h.map(r=>r.fill_r*100),col:css("--real")},{y:h.map(r=>r.fill_t*100),col:css("--twin"),dash:[5,4]}],{min:40,max:100,fmt:v=>v.toFixed(0)+"%",bands,xl});
+  lineChart("#c2",[{y:h.map(r=>r.stock_err*100),col:css("--twin")}],{min:0,fmt:v=>v.toFixed(0)+"%",xl});
+  lineChart("#c3",[{y:h.map(r=>r.scale_true),col:css("--real")},{y:h.map(r=>r.scale_est),col:css("--twin"),dash:[5,4]}],{min:.5,max:1.7,fmt:v=>v.toFixed(1)+"×",xl});
+  const f=ST.forecast; if(f){const names=Object.keys(f.policies);
+    $("#fleg").innerHTML=names.map(n=>`<span><i style="border-color:${PCOL[n]||"#888"}"></i>${n}</span>`).join("");
+    lineChart("#c4",names.map(n=>({y:f.policies[n].fill_mean.map(v=>v*100),lo:n===ST.policy?f.policies[n].fill_lo.map(v=>v*100):null,hi:n===ST.policy?f.policies[n].fill_hi.map(v=>v*100):null,col:PCOL[n]||"#888"})),{min:40,max:100,fmt:v=>v.toFixed(0)+"%",xl:[[0,"+1 day"],[f.horizon-1,"+"+f.horizon+" days"]]});
+    $("#ftab").innerHTML="<tr><th>Policy</th><th>Demand met</th><th>Units lost</th><th>Units wasted</th><th>Profit, 14 d</th></tr>"+names.map(n=>{const p=f.policies[n],m=p.fill_mean.reduce((a,b)=>a+b,0)/p.fill_mean.length;return `<tr><td>${n}</td><td>${(m*100).toFixed(1)}%</td><td>${p.lost.toLocaleString()}</td><td>${p.waste.toLocaleString()}</td><td>₹${(p.profit/1e5).toFixed(1)} L</td></tr>`}).join("");
+    $("#fstat").textContent="as of day "+f.day;
+  } else {$("#c4").getContext("2d").clearRect(0,0,700,190);$("#fleg").innerHTML="";$("#ftab").innerHTML="";$("#fstat").textContent=ST.forecasting?"running…":"press Forecast now"}
+}
+function status(){
+  if(!ST||!ST.hist.length){$("#status").textContent="Press Play or Step to start.";return}
+  const r=ST.hist[ST.hist.length-1];
+  const b=(on,cls,t)=>`<span class="b ${on?cls:""}">${t}</span>`;
+  const t=ST.timers||{};
+  $("#status").innerHTML=`<span><b>Reality</b></span>${b(r.weather_r,"heat","heat wave")}${b(r.supply_r,"sup","supply stress")}${b(r.festival_r,"fest","festival")}${b(r.cuts>0,"cut",r.cuts+" areas without power")}`+
+   `<span style="margin-left:10px"><b>Twin believes</b></span>${b(r.weather_t,"heat","heat wave")}${b(r.supply_t,"sup","supply stress")}${b(r.festival_t,"fest","festival")}`+
+   `<span style="margin-left:10px" class="lbl">demand level: true ${r.scale_true.toFixed(2)}×, twin ${r.scale_est.toFixed(2)}×</span>`+
+   `<span class="lbl">${S.sensors.reduce((a,b)=>a+b,0)} shops have stock sensors</span>`;
+  $("#dayLbl").textContent="Day "+r.day+" (week "+Math.floor((r.day-1)/7)+")";
+}
+function draw(){drawMap();charts();status()}
+async function poll(){ if(busy)return; busy=true; try{ST=await (await fetch("/api/state")).json();
+  $("#play").textContent=ST.playing?"Pause":"Play"; if(document.activeElement.id!=="sync")$("#sync").value=ST.sync; if(document.activeElement.id!=="policy")$("#policy").value=ST.policy;
+  if(document.activeElement.id!=="rate")$("#rate").value=ST.rate; $("#fauto").checked=ST.auto_forecast; draw()}catch(e){} busy=false}
+setInterval(poll,400);poll();
+$("#play").onclick=()=>api(ST&&ST.playing?"pause":"play");
+$("#step").onclick=()=>api("step").then(poll);
+$("#rate").onchange=e=>api("rate",{value:e.target.value});
+$("#sync").onchange=e=>api("sync",{value:e.target.value});
+$("#policy").onchange=e=>api("reset",{policy:e.target.value});
+$("#reset").onclick=()=>api("reset",{policy:$("#policy").value}).then(poll);
+$("#view").onchange=drawMap;
+$("#fgo").onclick=()=>api("forecast"); $("#fauto").onchange=e=>api("auto_forecast",{value:e.target.checked});
+document.querySelectorAll("[data-k]").forEach(b=>b.onclick=()=>api("inject",{kind:b.dataset.k,days:+b.dataset.d,value:6}));
+$("#dem").oninput=e=>$("#demv").textContent=(+e.target.value).toFixed(2)+"×";
+$("#demGo").onclick=()=>api("inject",{kind:"demand",value:+$("#dem").value,days:7});
+$("#clear").onclick=()=>api("inject",{kind:"clear"});
+matchMedia("(prefers-color-scheme:dark)").addEventListener("change",draw);
+</script></body></html>
